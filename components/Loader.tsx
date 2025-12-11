@@ -1,4 +1,5 @@
 
+
 import React, { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 
@@ -13,15 +14,21 @@ const MESSAGES = [
   "Calculating Ethical Risk Score...",
 ];
 
-const Loader: React.FC = () => {
+interface Props {
+    customMessage?: string;
+}
+
+const Loader: React.FC<Props> = ({ customMessage }) => {
   const [msgIndex, setMsgIndex] = useState(0);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setMsgIndex((prev) => (prev + 1) % MESSAGES.length);
-    }, 2500);
-    return () => clearInterval(interval);
-  }, []);
+    if (!customMessage) {
+        const interval = setInterval(() => {
+        setMsgIndex((prev) => (prev + 1) % MESSAGES.length);
+        }, 2500);
+        return () => clearInterval(interval);
+    }
+  }, [customMessage]);
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-black text-white p-4">
@@ -30,8 +37,8 @@ const Loader: React.FC = () => {
             <div className="absolute inset-0 bg-yellow-500 blur-xl opacity-20 animate-pulse"></div>
             <Loader2 className="w-16 h-16 text-yellow-500 animate-spin relative z-10" />
         </div>
-        <h2 className="text-2xl font-bold font-mono tracking-widest text-center">
-          {MESSAGES[msgIndex]}
+        <h2 className="text-2xl font-bold font-mono tracking-widest text-center animate-pulse">
+          {customMessage || MESSAGES[msgIndex]}
         </h2>
         <div className="w-64 h-1 bg-gray-800 rounded-full overflow-hidden">
             <div className="h-full bg-yellow-500 animate-loading-bar"></div>

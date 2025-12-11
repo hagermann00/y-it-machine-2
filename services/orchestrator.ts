@@ -1,3 +1,4 @@
+
 import { LLMClient } from "./core/LLMClient";
 import { ResearchDataSchema, ValidatedResearchData } from "./core/SchemaValidator";
 import { DetectiveAgent, AuditorAgent, InsiderAgent, StatAgent } from "./agents/SpecializedAgents";
@@ -93,7 +94,8 @@ export class ResearchCoordinator {
                   label: { type: Type.STRING },
                   value: { type: Type.STRING },
                   context: { type: Type.STRING }
-                }
+                },
+                required: ["label", "value", "context"]
               }
             },
             hiddenCosts: {
@@ -104,7 +106,8 @@ export class ResearchCoordinator {
                   label: { type: Type.STRING },
                   value: { type: Type.STRING },
                   context: { type: Type.STRING }
-                }
+                },
+                required: ["label", "value", "context"]
               }
             },
             caseStudies: {
@@ -118,7 +121,8 @@ export class ResearchCoordinator {
                   strategy: { type: Type.STRING },
                   outcome: { type: Type.STRING },
                   revenue: { type: Type.STRING }
-                }
+                },
+                required: ["name", "type", "background", "strategy", "outcome", "revenue"]
               }
             },
             affiliates: {
@@ -131,7 +135,8 @@ export class ResearchCoordinator {
                   type: { type: Type.STRING, enum: ['PARTICIPANT', 'WRITER'] },
                   commission: { type: Type.STRING },
                   notes: { type: Type.STRING }
-                }
+                },
+                required: ["program", "type", "commission", "notes"]
               }
             }
           }

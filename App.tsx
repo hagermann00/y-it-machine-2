@@ -1,17 +1,20 @@
+
 import React, { useState } from 'react';
 import InputSection from './components/InputSection';
 import ResearchDashboard from './components/ResearchDashboard';
 import BookReader from './components/BookReader';
+import PodcastStudio from './components/PodcastStudio';
 import AgentStatus from './components/AgentStatus';
+import Loader from './components/Loader'; // Import Loader
 import { AppState, Book, Project, Branch, GenSettings, ExportSettings, TrimSize } from './types';
-import { BookOpen, PieChart, ArrowLeft, Download, ChevronDown, Plus, GitBranch, Settings, X, Loader2 } from 'lucide-react';
+import { BookOpen, PieChart, ArrowLeft, Download, ChevronDown, Plus, GitBranch, Settings, X, Loader2, Mic2 } from 'lucide-react';
 import { downloadPdf } from './utils/pdfExport';
 import { ProjectProvider, useProject } from './context/ProjectContext';
 
 // Main Content Wrapper to consume Context
 const AppContent: React.FC = () => {
-  const { state, startInvestigation, createBranch, resetProject, setActiveBranch, updateActiveBook } = useProject();
-  const [activeTab, setActiveTab] = useState<'RESEARCH' | 'BOOK'>('RESEARCH');
+  const { state, startInvestigation, createBranch, resetProject, setActiveBranch, updateActiveBook, generatePodcast, updatePodcastEpisode } = useProject();
+  const [activeTab, setActiveTab] = useState<'RESEARCH' | 'BOOK' | 'PODCAST'>('RESEARCH');
   const [showBranchMenu, setShowBranchMenu] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
@@ -63,6 +66,12 @@ const AppContent: React.FC = () => {
         </h2>
         <AgentStatus agents={state.agentStates} />
       </div>
+    );
+  }
+
+  if (state.status === 'DRAFTING') {
+    return (
+        <Loader customMessage={state.loadingMessage || "Generating Draft..."} />
     );
   }
 
@@ -119,6 +128,12 @@ const AppContent: React.FC = () => {
             >
                 <BookOpen size={14} /> <span className="hidden md:inline">Book</span>
             </button>
+            <button 
+                onClick={() => setActiveTab('PODCAST')}
+                className={`px-3 md:px-4 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 transition-all ${activeTab === 'PODCAST' ? 'bg-purple-600 text-white shadow-sm' : 'text-gray-500 hover:text-gray-300'}`}
+            >
+                <Mic2 size={14} /> <span className="hidden md:inline">Studio</span>
+            </button>
         </div>
 
         <div className="relative">
@@ -140,7 +155,7 @@ const AppContent: React.FC = () => {
             <>
                 {activeTab === 'RESEARCH' ? (
                     <ResearchDashboard data={state.project.research} />
-                ) : (
+                ) : activeTab === 'BOOK' ? (
                     <div className="flex flex-col gap-8">
                         {activeBranch ? (
                             <BookReader 
@@ -169,6 +184,14 @@ const AppContent: React.FC = () => {
                             />
                         </div>
                     </div>
+                ) : (
+                    // PODCAST VIEW
+                    <PodcastStudio 
+                        podcast={activeBranch?.podcast}
+                        isGenerating={state.isGeneratingPodcast}
+                        onGenerate={generatePodcast}
+                        onUpdatePodcast={updatePodcastEpisode}
+                    />
                 )}
             </>
         )}

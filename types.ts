@@ -1,3 +1,4 @@
+
 export interface CaseStudy {
   name: string;
   type: 'WINNER' | 'LOSER';
@@ -9,7 +10,7 @@ export interface CaseStudy {
 
 export interface AffiliateOpp {
   program: string;
-  potential: string;
+  potential?: string; // Optional
   type: 'PARTICIPANT' | 'WRITER'; // 'PARTICIPANT' = for doing the hustle, 'WRITER' = for writing about it
   commission: string;
   notes: string;
@@ -81,12 +82,40 @@ export interface GenSettings {
   imageModelHierarchy?: ImageModelID[];
 }
 
+// --- Podcast Types ---
+
+export type VoiceName = 'Puck' | 'Charon' | 'Kore' | 'Fenrir' | 'Zephyr';
+
+export interface PodcastSettings {
+  host1Voice: VoiceName;
+  host2Voice: VoiceName;
+  host1Name?: string; // Custom display name
+  host2Name?: string; // Custom display name
+  conversationStyle: string; // e.g. "Skeptical vs Optimist", "Deep Dive"
+  lengthLevel: number; // 1 (Short), 2 (Medium), 3 (Long)
+}
+
+export interface PodcastScriptLine {
+  speaker: string; // "Host 1" or "Host 2"
+  text: string;
+}
+
+export interface PodcastEpisode {
+  id: string;
+  title: string;
+  script: PodcastScriptLine[];
+  audioUrl: string | null; // Blob URL
+  settings: PodcastSettings;
+  timestamp: number;
+}
+
 export interface Branch {
   id: string;
   name: string;
   timestamp: number;
   settings: GenSettings;
   book: Book;
+  podcast?: PodcastEpisode;
 }
 
 export interface Project {

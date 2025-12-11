@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { ResearchData } from '../types';
 import { ShieldAlert, TrendingUp, DollarSign, Users, Skull, CheckCircle } from 'lucide-react';
@@ -107,7 +108,7 @@ const ResearchDashboard: React.FC<Props> = ({ data }) => {
                         </div>
                         <div className="text-right">
                             <div className="text-green-400 font-mono text-sm">{aff.commission}</div>
-                            <div className="text-[10px] uppercase tracking-wider text-gray-600">{aff.potential}</div>
+                            {aff.potential && <div className="text-[10px] uppercase tracking-wider text-gray-600">{aff.potential}</div>}
                         </div>
                     </div>
                 ))}
@@ -130,7 +131,7 @@ const ResearchDashboard: React.FC<Props> = ({ data }) => {
                         </div>
                         <div className="text-right">
                             <div className="text-green-400 font-mono text-sm">{aff.commission}</div>
-                            <div className="text-[10px] uppercase tracking-wider text-gray-600">{aff.potential}</div>
+                            {aff.potential && <div className="text-[10px] uppercase tracking-wider text-gray-600">{aff.potential}</div>}
                         </div>
                     </div>
                 ))}

@@ -1,368 +1,589 @@
-import React, { useState, useEffect } from 'react';
-import { Search, Settings, ChevronDown, ChevronUp, Palette, MessageSquare, LayoutTemplate, Sliders, Hash, Image as ImageIcon, Upload, AlertCircle, GitBranch, Plus, Copy, ArrowUp, ArrowDown } from 'lucide-react';
-import { Y_IT_NANO_BOOK_SPEC, IMAGE_MODELS } from '../constants';
+
+import React, { useState, useRef, useEffect } from 'react';
+import { Search, Settings, ChevronDown, ChevronUp, AlertCircle, GitBranch, Zap, Plus, Image as ImageIcon, Trash2, Upload, FileText, Activity, Smile, Bot, Copy, Clipboard, FileEdit, Calculator, BookOpen, Palette, Sliders } from 'lucide-react';
 import { GenSettings, ImageModelID } from '../types';
+import { IMAGE_MODELS } from '../constants';
 
 interface InputSectionProps {
   onGenerate: (topic: string, settings: GenSettings) => void;
   isLoading: boolean;
-  existingResearchTopic?: string; // If present, we are in "New Branch" mode
-  defaultSettings?: GenSettings; // Settings to inherit/shadow from original draft
+  existingResearchTopic?: string;
+  defaultSettings?: GenSettings;
 }
 
-const InputSection: React.FC<InputSectionProps> = ({ onGenerate, isLoading, existingResearchTopic, defaultSettings }) => {
-  const [topic, setTopic] = useState('');
-  const [showConfig, setShowConfig] = useState(false);
-  const [customSpec, setCustomSpec] = useState(Y_IT_NANO_BOOK_SPEC);
-  const [tone, setTone] = useState('');
-  const [visualStyle, setVisualStyle] = useState('');
+interface ChapterConfig {
+  id: number;
+  title: string; // For addendums or specific titles
+  outline: string; // The main brief
+  customInstructions: string; // Merged field: Content + Visuals
+  pages: number;
+  words: number;
+  posibots: number;
+  techBars: number;
+  funnyImages: number;
+  techLevel: number; // 0-100
+  humorLevel: number; // 0-100
+  manuscript: string; // Override text
+}
+
+interface GlobalConfig {
+  broadPrompt: string;
+  bookStructure: string; // Funnel
+  tone: string;
+  toneThrottle: number;
+  visualProfile: string; // Was Custom Adjustments
+  colorScheme: string;
+  posibotRules: string;
+  techImageRules: string;
+  artisticImageRules: string;
+  kdpRules: string;
+  systemicAdjustments: string;
+  technicalLevel: number;
+  humorBalance: number;
+  chapterTitlePrompt: string;
+}
+
+export default function InputSection({ onGenerate, isLoading, existingResearchTopic, defaultSettings }: InputSectionProps) {
+  const [topic, setTopic] = useState(existingResearchTopic || '');
+  const [showAdvanced, setShowAdvanced] = useState(true);
   
-  const [isLocalSubmitting, setIsLocalSubmitting] = useState(false);
-  const [validationError, setValidationError] = useState<string | null>(null);
+  // --- Metrics ---
+  const [chapterCount, setChapterCount] = useState(8);
+  const [addendumCount, setAddendumCount] = useState(2);
+  const [targetTotalPages, setTargetTotalPages] = useState(80); // Default 10 * 8
 
-  // Branch Mode: Shadowing Settings
-  const [inheritSettings, setInheritSettings] = useState(!!defaultSettings);
+  // --- Global State ---
+  const [globalConfig, setGlobalConfig] = useState<GlobalConfig>({
+    broadPrompt: '',
+    bookStructure: '',
+    tone: 'Satirical Forensic',
+    toneThrottle: 80,
+    visualProfile: '', // Renamed from Custom Adjustments
+    colorScheme: 'Black/White/Yellow',
+    posibotRules: 'Interrupt when the reader gets hopeful. Deny math. Use corporate buzzwords.',
+    techImageRules: 'High contrast diagrams, flowcharts that lead to dead ends, burning money graphs.',
+    artisticImageRules: 'Surrealist noir, digital grit, silhouettes of failure.',
+    kdpRules: 'Trim: 6x9. Margins: 0.5" Outer, 0.75" Gutter. Mirror Margins enabled.',
+    systemicAdjustments: '',
+    technicalLevel: 70,
+    humorBalance: 60,
+    chapterTitlePrompt: 'Surrealist noir concept art, high contrast, danger yellow accents, symbolic of the chapter theme.',
+  });
 
-  useEffect(() => {
-    if (!isLoading) setIsLocalSubmitting(false);
+  // --- Chapters State ---
+  const [chapters, setChapters] = useState<ChapterConfig[]>(
+    Array.from({ length: 20 }, (_, i) => ({
+      id: i + 1,
+      title: '',
+      outline: '',
+      customInstructions: '', 
+      pages: 10,
+      words: 2500,
+      techBars: 2,
+      funnyImages: 1,
+      posibots: 2,
+      techLevel: 50,
+      humorLevel: 50,
+      manuscript: ''
+    }))
+  );
+
+  const [addendums, setAddendums] = useState<ChapterConfig[]>(
+    Array.from({ length: 10 }, (_, i) => ({
+      id: i + 1,
+      title: '',
+      outline: '',
+      customInstructions: '',
+      pages: 5,
+      words: 1250,
+      techBars: 1,
+      funnyImages: 0,
+      posibots: 1,
+      techLevel: 50,
+      humorLevel: 50,
+      manuscript: ''
+    }))
+  );
+
+  // --- Helpers ---
+  
+  const updateChapter = (id: number, field: keyof ChapterConfig, value: any) => {
+    setChapters(prev => prev.map(ch => ch.id === id ? { ...ch, [field]: value } : ch));
+  };
+  
+  const updateAddendum = (id: number, field: keyof ChapterConfig, value: any) => {
+    setAddendums(prev => prev.map(a => a.id === id ? { ...a, [field]: value } : a));
+  };
+
+  // Auto-distribute total pages
+  const handleSetTotalPages = (total: number) => {
+      setTargetTotalPages(total);
+      const activeChapters = chapters.slice(0, chapterCount);
+      const count = activeChapters.length;
+      if (count === 0) return;
+
+      const basePages = Math.floor(total / count);
+      const remainder = total % count;
+
+      setChapters(prev => prev.map((ch, idx) => {
+          if (idx >= count) return ch;
+          const newPages = basePages + (idx < remainder ? 1 : 0);
+          return {
+              ...ch,
+              pages: newPages,
+              words: newPages * 250 // Standard density
+          };
+      }));
+  };
+
+  const adjustPagesWords = (id: number, field: 'pages' | 'words', delta: number, isAddendum = false) => {
+    const update = isAddendum ? updateAddendum : updateChapter;
+    const items = isAddendum ? addendums : chapters;
+    const item = items.find(c => c.id === id);
+    if (!item) return;
     
-    // If starting a new branch, auto-open config so user can change settings
-    if (existingResearchTopic && !isLoading) setShowConfig(true);
-  }, [isLoading, existingResearchTopic]);
-
-  // Settings State
-  const [lengthLevel, setLengthLevel] = useState(2);
-  const [imageDensity, setImageDensity] = useState(2);
-  const [techLevel, setTechLevel] = useState(2);
-  const [targetWordCount, setTargetWordCount] = useState<number | ''>('');
-  const [caseStudyCount, setCaseStudyCount] = useState<number | ''>('');
-
-  const [frontCoverPrompt, setFrontCoverPrompt] = useState('');
-  const [backCoverPrompt, setBackCoverPrompt] = useState('');
-
-  // Image Hierarchy State
-  const [modelHierarchy, setModelHierarchy] = useState<ImageModelID[]>(IMAGE_MODELS.map(m => m.id as ImageModelID));
-  
-  // Apply Default Settings (Shadowing) Logic
-  useEffect(() => {
-    if (inheritSettings && defaultSettings) {
-        setTone(defaultSettings.tone);
-        setVisualStyle(defaultSettings.visualStyle);
-        setLengthLevel(defaultSettings.lengthLevel);
-        setImageDensity(defaultSettings.imageDensity);
-        setTechLevel(defaultSettings.techLevel);
-        setTargetWordCount(defaultSettings.targetWordCount || '');
-        setCaseStudyCount(defaultSettings.caseStudyCount || '');
-        setFrontCoverPrompt(defaultSettings.frontCoverPrompt || '');
-        setBackCoverPrompt(defaultSettings.backCoverPrompt || '');
-        setCustomSpec(defaultSettings.customSpec || Y_IT_NANO_BOOK_SPEC);
-        if (defaultSettings.imageModelHierarchy) {
-            setModelHierarchy(defaultSettings.imageModelHierarchy);
-        }
-    } else if (!inheritSettings && existingResearchTopic) {
-        // Reset to defaults when inheritance is turned off in branch mode
-        setTone('');
-        setVisualStyle('');
-        setLengthLevel(2);
-        setImageDensity(2);
-        setTechLevel(2);
-        setTargetWordCount('');
-        setCaseStudyCount('');
-        setFrontCoverPrompt('');
-        setBackCoverPrompt('');
-        setCustomSpec(Y_IT_NANO_BOOK_SPEC);
-        setModelHierarchy(IMAGE_MODELS.map(m => m.id as ImageModelID));
+    if (field === 'pages') {
+      const newPages = Math.max(1, item.pages + delta);
+      const wordsPerPage = 250;
+      update(id, 'pages', newPages);
+      update(id, 'words', Math.round(newPages * wordsPerPage));
+    } else {
+      const newWords = Math.max(100, item.words + (delta * 250));
+      update(id, 'words', newWords);
     }
-  }, [inheritSettings, defaultSettings, existingResearchTopic]);
-
-  // If in branch mode, topic is fixed
-  useEffect(() => {
-    if (existingResearchTopic) setTopic(existingResearchTopic);
-  }, [existingResearchTopic]);
-
-  const validateInputs = (): boolean => {
-    if (!topic.trim()) {
-        setValidationError("Please enter a research topic.");
-        return false;
-    }
-    if (topic.length > 100) {
-        setValidationError("Topic is too long.");
-        return false;
-    }
-    if (targetWordCount !== '' && (targetWordCount < 100 || targetWordCount > 2000)) {
-        setValidationError("Target word count must be between 100 and 2000.");
-        return false;
-    }
-    if (caseStudyCount !== '' && (caseStudyCount < 1 || caseStudyCount > 50)) {
-        setValidationError("Case study count must be between 1 and 50.");
-        return false;
-    }
-    setValidationError(null);
-    return true;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (isLocalSubmitting || isLoading) return;
+  // --- Template Management ---
 
-    if (validateInputs()) {
-      setIsLocalSubmitting(true);
-      
-      const settings: GenSettings = {
-          tone,
-          visualStyle,
-          lengthLevel,
-          imageDensity,
-          techLevel,
-          targetWordCount: targetWordCount === '' ? undefined : targetWordCount,
-          caseStudyCount: caseStudyCount === '' ? undefined : caseStudyCount,
-          frontCoverPrompt,
-          backCoverPrompt,
-          customSpec: showConfig ? customSpec : undefined,
-          imageModelHierarchy: modelHierarchy
+  const handleCopyTemplate = (empty: boolean) => {
+      const template = {
+          global: globalConfig,
+          chapterCount,
+          addendumCount,
+          chapters: empty ? [] : chapters.slice(0, chapterCount),
+          addendums: empty ? [] : addendums.slice(0, addendumCount)
       };
-      
-      onGenerate(topic, settings);
-    }
+      navigator.clipboard.writeText(JSON.stringify(template, null, 2));
+      alert(empty ? "Empty Template Copied!" : "Full Config Copied!");
   };
 
-  const moveModel = (index: number, direction: 'up' | 'down') => {
-      const newHierarchy = [...modelHierarchy];
-      if (direction === 'up' && index > 0) {
-          [newHierarchy[index], newHierarchy[index - 1]] = [newHierarchy[index - 1], newHierarchy[index]];
-      } else if (direction === 'down' && index < newHierarchy.length - 1) {
-          [newHierarchy[index], newHierarchy[index + 1]] = [newHierarchy[index + 1], newHierarchy[index]];
-      }
-      setModelHierarchy(newHierarchy);
-      if (inheritSettings) setInheritSettings(false);
-  };
-
-  const getLabelForSlider = (val: number, labels: string[]) => labels[val - 1];
-  const isProcessing = isLoading || isLocalSubmitting;
-
-  return (
-    <div className={`flex flex-col items-center justify-center bg-black text-white p-4 relative overflow-hidden ${existingResearchTopic ? 'min-h-0' : 'min-h-screen'}`}>
-      
-      {/* Background only on initial screen */}
-      {!existingResearchTopic && (
-          <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
-            <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-yellow-600 rounded-full blur-[128px]"></div>
-            <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-red-900 rounded-full blur-[128px]"></div>
-          </div>
-      )}
-
-      <div className="z-10 max-w-3xl w-full text-center space-y-6 animate-fadeIn">
-        
-        {!existingResearchTopic ? (
-            <div className="space-y-4">
-              <div className="flex items-center justify-center gap-2 mb-6">
-                <span className="bg-yellow-500 text-black px-3 py-1 text-xs font-bold uppercase tracking-widest rounded-sm">
-                  Y-It Engine v3.0
-                </span>
-              </div>
-              <h1 className="text-5xl md:text-7xl font-bold tracking-tighter leading-none">
-                Expose the <span className="text-yellow-500">Hustle</span>.
-              </h1>
-              <p className="text-xl text-gray-400 max-w-lg mx-auto">
-                Enter any internet side hustle. We'll generate a ruthlessly honest research dossier and multiple book variations.
-              </p>
-            </div>
-        ) : (
-            <div className="bg-gray-900/80 p-6 rounded-xl border border-yellow-500/30">
-                <div className="flex items-center justify-center gap-2 text-yellow-500 mb-2">
-                    <GitBranch size={24} />
-                    <h2 className="text-xl font-bold">Create New Branch</h2>
-                </div>
-                <p className="text-gray-400 text-sm mb-4">
-                    Generate a distinct variation of the book using the existing research for 
-                    <span className="text-white font-bold mx-1">"{existingResearchTopic}"</span>.
-                </p>
-                {defaultSettings && (
-                   <div className="flex items-center justify-center gap-3">
-                       <label className="flex items-center cursor-pointer relative">
-                            <input 
-                                type="checkbox" 
-                                checked={inheritSettings} 
-                                onChange={(e) => setInheritSettings(e.target.checked)} 
-                                className="sr-only peer"
-                            />
-                            <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-yellow-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-yellow-500"></div>
-                            <span className="ml-3 text-sm font-medium text-gray-300 flex items-center gap-2">
-                                <Copy size={14}/> Inherit Original Settings
-                            </span>
-                       </label>
-                   </div>
-                )}
-            </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="relative w-full space-y-6">
-          {!existingResearchTopic && (
-              <div className="relative max-w-lg mx-auto">
-                <input
-                  type="text"
-                  value={topic}
-                  onChange={(e) => setTopic(e.target.value)}
-                  placeholder="e.g. Dropshipping, Dog Walking..."
-                  className={`w-full bg-gray-900 border ${validationError ? 'border-red-500' : 'border-gray-800'} text-white px-6 py-4 rounded-xl focus:outline-none focus:ring-2 focus:ring-yellow-500 text-lg shadow-2xl`}
-                  disabled={isProcessing}
-                />
-              </div>
-          )}
-
-            <button
-              type="submit"
-              disabled={isProcessing || !topic.trim()}
-              className={`mx-auto bg-yellow-500 hover:bg-yellow-400 text-black font-bold px-8 py-3 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-yellow-500/20`}
-            >
-              {isProcessing ? (
-                <span className="animate-pulse">Processing...</span>
-              ) : existingResearchTopic ? (
-                <>
-                  <Plus size={20} />
-                  <span>Generate New Draft Branch</span>
-                </>
-              ) : (
-                <>
-                  <Search size={20} />
-                  <span>Start Investigation</span>
-                </>
-              )}
-            </button>
+  const handlePasteTemplate = async () => {
+      try {
+          const text = await navigator.clipboard.readText();
+          const data = JSON.parse(text);
           
-          {validationError && (
-              <div className="flex items-center justify-center gap-2 text-red-400 text-sm animate-shake">
-                  <AlertCircle size={16} />
-                  <span>{validationError}</span>
-              </div>
-          )}
+          if (data.global) {
+              // Smart Merge: Only overwrite if data exists in paste, otherwise keep current
+              setGlobalConfig(prev => ({
+                  ...prev,
+                  ...Object.fromEntries(Object.entries(data.global).filter(([_, v]) => v !== ""))
+              }));
+          }
+          if (data.chapterCount) setChapterCount(data.chapterCount);
+          if (data.addendumCount) setAddendumCount(data.addendumCount);
+          
+          if (Array.isArray(data.chapters)) {
+              setChapters(prev => prev.map(ch => {
+                  const pasted = data.chapters.find((p: any) => p.id === ch.id);
+                  if (pasted) {
+                      // Merge fields
+                      return { ...ch, ...pasted };
+                  }
+                  return ch;
+              }));
+          }
+          alert("Template Merged Successfully!");
+      } catch (e) {
+          alert("Invalid Template JSON");
+      }
+  };
 
-          {/* Configuration Toggle */}
-          <div className="w-full max-w-2xl mx-auto">
-            <button
-              type="button"
-              onClick={() => setShowConfig(!showConfig)}
-              className="flex items-center justify-center gap-2 text-gray-500 hover:text-white transition-colors text-sm mx-auto mb-4 hover:bg-gray-900 px-4 py-2 rounded-full"
-            >
-              <Settings size={16} />
-              {showConfig ? "Hide Settings" : "Customize Settings (Tone, Specs, Covers)"}
-              {showConfig ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-            </button>
-            
-            {showConfig && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-gray-900/50 border border-gray-800 rounded-2xl p-6 animate-slideDown backdrop-blur-sm text-left shadow-2xl h-[500px] overflow-y-auto custom-scrollbar">
-                 
-                 {/* Sliders */}
-                 <div className="md:col-span-2 space-y-6 bg-black/40 p-4 rounded-xl border border-gray-800">
-                    <label className="flex items-center gap-2 text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">
-                        <Sliders size={14} className="text-orange-500"/> Dimensions & Physics
-                    </label>
-                    
-                    <div className="space-y-2">
-                        <div className="flex justify-between text-xs text-gray-300">
-                            <span>Length</span>
-                            <span className="text-yellow-500 font-bold">{getLabelForSlider(lengthLevel, ['Nano', 'Standard', 'Deep'])}</span>
-                        </div>
-                        <input type="range" min="1" max="3" step="1" value={lengthLevel} onChange={(e) => { setLengthLevel(parseInt(e.target.value)); if(inheritSettings) setInheritSettings(false); }} className="w-full h-2 bg-gray-700 rounded-lg accent-yellow-500" />
-                    </div>
+  // --- Compilation ---
 
-                    <div className="space-y-2">
-                        <div className="flex justify-between text-xs text-gray-300">
-                            <span>Image Density</span>
-                            <span className="text-purple-500 font-bold">{getLabelForSlider(imageDensity, ['Text', 'Balanced', 'Heavy'])}</span>
-                        </div>
-                        <input type="range" min="1" max="3" step="1" value={imageDensity} onChange={(e) => { setImageDensity(parseInt(e.target.value)); if(inheritSettings) setInheritSettings(false); }} className="w-full h-2 bg-gray-700 rounded-lg accent-purple-500" />
-                    </div>
+  const compileManifest = () => {
+    let spec = `# Y-It Book Manifest\n\n`;
+    spec += `## Global Configuration\n`;
+    spec += `**Broad Concept:** ${globalConfig.broadPrompt}\n`;
+    spec += `**Tone:** ${globalConfig.tone} (Intensity: ${globalConfig.toneThrottle}%)\n`;
+    spec += `**Structure Funnel:** ${globalConfig.bookStructure}\n`;
+    spec += `**Visual Profile:** ${globalConfig.visualProfile}\n`;
+    spec += `**Color Scheme:** ${globalConfig.colorScheme}\n`;
+    spec += `**Standard Tech Rules:** ${globalConfig.techImageRules}\n`;
+    spec += `**Standard Art Rules:** ${globalConfig.artisticImageRules}\n`;
+    spec += `**Standard PosiBot Rules:** ${globalConfig.posibotRules}\n`;
+    spec += `**KDP Rules:** ${globalConfig.kdpRules}\n`;
+    spec += `**Systemic Adjustments:** ${globalConfig.systemicAdjustments}\n`;
+    
+    spec += `\n## Chapter Manifest\n`;
+    chapters.slice(0, chapterCount).forEach(ch => {
+        spec += `\n### Chapter ${ch.id}\n`;
+        if (ch.manuscript && ch.manuscript.trim().length > 10) {
+             spec += `[MANUSCRIPT OVERRIDE ENABLED]\n${ch.manuscript}\n`;
+        } else {
+             spec += `**Outline:** ${ch.outline || "Auto-generate based on structure"}\n`;
+             spec += `**Custom Instructions (Content & Visuals):** ${ch.customInstructions || "None"}\n`;
+             spec += `**Title Prompt:** ${globalConfig.chapterTitlePrompt}\n`;
+             spec += `**Targets:** ${ch.pages} Pages, ~${ch.words} Words.\n`;
+             spec += `**Elements:** ${ch.posibots} PosiBots, ${ch.techBars} Charts, ${ch.funnyImages} Satirical Images.\n`;
+             spec += `**Levels:** Tech ${ch.techLevel}%, Humor ${ch.humorLevel}%.\n`;
+        }
+    });
 
-                    <div className="space-y-2">
-                        <div className="flex justify-between text-xs text-gray-300">
-                            <span>Visual Tech</span>
-                            <span className="text-blue-500 font-bold">{getLabelForSlider(techLevel, ['Artistic', 'Hybrid', 'Technical'])}</span>
-                        </div>
-                        <input type="range" min="1" max="3" step="1" value={techLevel} onChange={(e) => { setTechLevel(parseInt(e.target.value)); if(inheritSettings) setInheritSettings(false); }} className="w-full h-2 bg-gray-700 rounded-lg accent-blue-500" />
-                    </div>
-                 </div>
+    if (addendumCount > 0) {
+        spec += `\n## Addendums\n`;
+        addendums.slice(0, addendumCount).forEach(ch => {
+            spec += `\n### Addendum ${ch.id}: ${ch.title}\n`;
+            spec += `**Outline:** ${ch.outline}\n`;
+            spec += `**Instructions:** ${ch.customInstructions}\n`;
+            spec += `**Targets:** ${ch.pages} Pages.\n`;
+        });
+    }
 
-                 {/* Generator Hierarchy */}
-                 <div className="md:col-span-2 space-y-4 bg-black/40 p-4 rounded-xl border border-gray-800">
-                     <label className="flex items-center gap-2 text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
-                         <Upload size={14} className="text-green-500"/> Generator Hierarchy (Fallback Order)
-                     </label>
-                     <div className="space-y-2">
-                         {modelHierarchy.map((modelId, index) => {
-                             const modelInfo = IMAGE_MODELS.find(m => m.id === modelId);
-                             return (
-                                 <div key={modelId} className="flex items-center justify-between bg-gray-800 p-2 rounded text-sm border border-gray-700">
-                                     <div className="flex items-center gap-2">
-                                         <span className="bg-gray-700 text-gray-400 w-6 h-6 flex items-center justify-center rounded-full text-xs font-mono">{index + 1}</span>
-                                         <span>{modelInfo?.name || modelId}</span>
-                                     </div>
-                                     <div className="flex gap-1">
-                                         <button 
-                                            type="button" 
-                                            onClick={() => moveModel(index, 'up')} 
-                                            disabled={index === 0}
-                                            className="p-1 hover:bg-gray-600 rounded disabled:opacity-30"
-                                         >
-                                             <ArrowUp size={14} />
-                                         </button>
-                                         <button 
-                                            type="button" 
-                                            onClick={() => moveModel(index, 'down')} 
-                                            disabled={index === modelHierarchy.length - 1}
-                                            className="p-1 hover:bg-gray-600 rounded disabled:opacity-30"
-                                         >
-                                             <ArrowDown size={14} />
-                                         </button>
-                                     </div>
-                                 </div>
-                             );
-                         })}
-                     </div>
-                 </div>
+    return spec;
+  };
 
-                 {/* Cover Art */}
-                 <div className="md:col-span-2 space-y-4 bg-black/40 p-4 rounded-xl border border-gray-800">
-                    <label className="flex items-center gap-2 text-xs font-bold text-gray-400 uppercase tracking-wider">
-                        <ImageIcon size={14} className="text-pink-500"/> Cover Art Studio
-                    </label>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <textarea value={frontCoverPrompt} onChange={(e) => { setFrontCoverPrompt(e.target.value); if(inheritSettings) setInheritSettings(false); }} placeholder="Front Cover Prompt..." className="w-full h-20 bg-black border border-gray-700 rounded p-2 text-xs" />
-                        <textarea value={backCoverPrompt} onChange={(e) => { setBackCoverPrompt(e.target.value); if(inheritSettings) setInheritSettings(false); }} placeholder="Back Cover Prompt..." className="w-full h-20 bg-black border border-gray-700 rounded p-2 text-xs" />
-                    </div>
-                 </div>
+  const handleSubmit = () => {
+    if (!topic) return;
+    const spec = compileManifest();
+    
+    onGenerate(topic, {
+      tone: globalConfig.tone,
+      visualStyle: globalConfig.visualProfile || "Y-It Standard",
+      lengthLevel: 2, // Driven by manifest
+      imageDensity: 2, // Driven by manifest
+      techLevel: 2, // Driven by manifest
+      customSpec: spec,
+      imageModelHierarchy: IMAGE_MODELS.map(m => m.id as ImageModelID)
+    });
+  };
 
-                 {/* Numbers Override */}
-                 <div className="md:col-span-2 grid grid-cols-2 gap-4 bg-black/40 p-4 rounded-xl border border-gray-800">
-                    <label className="col-span-2 flex items-center gap-2 text-xs font-bold text-gray-400 uppercase tracking-wider">
-                        <Hash size={14} className="text-red-500"/> Constraints
-                    </label>
-                    <input type="number" min="100" max="2000" placeholder="Target Words (e.g. 500)" value={targetWordCount} onChange={(e) => { setTargetWordCount(e.target.value ? parseInt(e.target.value) : ''); if(inheritSettings) setInheritSettings(false); }} className="bg-black border border-gray-700 rounded p-2 text-sm" />
-                    <input type="number" min="1" max="50" placeholder="Case Studies (e.g. 15)" value={caseStudyCount} onChange={(e) => { setCaseStudyCount(e.target.value ? parseInt(e.target.value) : ''); if(inheritSettings) setInheritSettings(false); }} className="bg-black border border-gray-700 rounded p-2 text-sm" />
-                 </div>
-
-                 {/* Tone & Visual */}
-                 <textarea value={tone} onChange={(e) => { setTone(e.target.value); if(inheritSettings) setInheritSettings(false); }} placeholder="Narrative Tone..." className="h-24 bg-black/80 border border-gray-700 rounded p-4 text-xs" />
-                 <textarea value={visualStyle} onChange={(e) => { setVisualStyle(e.target.value); if(inheritSettings) setInheritSettings(false); }} placeholder="Visual Style..." className="h-24 bg-black/80 border border-gray-700 rounded p-4 text-xs" />
-
-                 {/* Spec */}
-                 <div className="md:col-span-2">
-                    <label className="block text-xs font-bold text-gray-400 mb-2">Base Spec</label>
-                    <textarea value={customSpec} onChange={(e) => { setCustomSpec(e.target.value); if(inheritSettings) setInheritSettings(false); }} className="w-full h-32 bg-black/80 border border-gray-700 rounded p-4 text-[10px] font-mono text-gray-400" />
-                 </div>
-              </div>
-            )}
-          </div>
-        </form>
+  const MiniCounter = ({ value, onChange, label, color = "text-yellow-500" }: any) => (
+    <div className="flex flex-col items-center">
+      {label && <span className="text-[10px] text-gray-500 mb-0.5 uppercase">{label}</span>}
+      <div className="flex items-center gap-1 bg-gray-950 rounded border border-gray-800 px-1">
+        <button onClick={() => onChange(Math.max(0, value - 1))} className="text-gray-500 hover:text-white px-1">-</button>
+        <span className={`${color} font-mono text-xs w-4 text-center`}>{value}</span>
+        <button onClick={() => onChange(value + 1)} className="text-gray-500 hover:text-white px-1">+</button>
       </div>
-      <style>{`
-        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 3px; }
-        @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
-        .animate-shake { animation: shake 0.5s ease-in-out; }
-      `}</style>
     </div>
   );
-};
 
-export default InputSection;
+  const Throttle = ({ label, value, onChange, leftLabel, rightLabel }: any) => (
+    <div className="flex items-center gap-2 w-full">
+       <span className="text-[10px] text-gray-500 w-12 text-right">{leftLabel}</span>
+       <input 
+          type="range" min="0" max="100" value={value} 
+          onChange={(e) => onChange(parseInt(e.target.value))}
+          className="flex-1 h-1 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-yellow-600"
+       />
+       <span className="text-[10px] text-gray-500 w-12">{rightLabel}</span>
+    </div>
+  );
+
+  const ChapterRow = ({ config, isAddendum = false }: { config: ChapterConfig, isAddendum?: boolean }) => {
+      const update = isAddendum ? updateAddendum : updateChapter;
+      const [showManuscript, setShowManuscript] = useState(false);
+
+      const handlePaste = (e: React.ClipboardEvent) => {
+          // Auto-expand manuscript on paste if focused there
+          if (!showManuscript) setShowManuscript(true);
+      };
+
+      return (
+          <div className="bg-gray-900/40 border border-gray-800 rounded-lg p-2 flex flex-col gap-2 hover:border-gray-700 transition-colors">
+              {/* Top Bar: ID, Title (if addendum), Metrics */}
+              <div className="flex items-center gap-3">
+                   <div className={`w-8 h-8 ${isAddendum ? 'bg-purple-900/50 text-purple-400' : 'bg-yellow-900/50 text-yellow-500'} rounded flex items-center justify-center font-bold text-xs`}>
+                       {isAddendum ? 'A' : ''}{config.id}
+                   </div>
+                   
+                   {isAddendum && (
+                       <input 
+                          value={config.title} onChange={e => update(config.id, 'title', e.target.value)}
+                          placeholder="Addendum Title"
+                          className="bg-transparent border-b border-gray-700 text-sm focus:outline-none focus:border-purple-500 w-48"
+                       />
+                   )}
+
+                   {/* Metrics Cluster */}
+                   <div className="flex items-center gap-3 ml-auto bg-black/30 px-2 py-1 rounded">
+                       <div className="flex items-center gap-1 border-r border-gray-800 pr-3">
+                           <FileText size={12} className="text-gray-500"/>
+                           <input 
+                              type="number" value={config.pages} 
+                              onChange={(e) => adjustPagesWords(config.id, 'pages', parseInt(e.target.value) - config.pages, isAddendum)}
+                              className="w-8 bg-transparent text-right text-xs font-mono focus:outline-none"
+                           />
+                           <span className="text-[10px] text-gray-600">pgs</span>
+                       </div>
+                       <div className="flex items-center gap-1">
+                           <span className="text-xs font-mono text-gray-400">{config.words}</span>
+                           <span className="text-[10px] text-gray-600">wds</span>
+                       </div>
+                   </div>
+
+                   {/* Elements Cluster */}
+                   <div className="flex items-center gap-2">
+                       <MiniCounter value={config.posibots} onChange={(v:number) => update(config.id, 'posibots', v)} label="POSI" />
+                       <MiniCounter value={config.techBars} onChange={(v:number) => update(config.id, 'techBars', v)} label="TECH" color="text-blue-400"/>
+                       <MiniCounter value={config.funnyImages} onChange={(v:number) => update(config.id, 'funnyImages', v)} label="LOL" color="text-green-400"/>
+                   </div>
+              </div>
+
+              {/* Main Editing Area */}
+              <div className="grid grid-cols-12 gap-2">
+                  {/* Outline (The King) */}
+                  <div className="col-span-8">
+                      <textarea 
+                          value={config.outline}
+                          onChange={(e) => update(config.id, 'outline', e.target.value)}
+                          placeholder={isAddendum ? "Addendum Brief..." : "Chapter Outline & Objectives..."}
+                          className="w-full h-24 bg-black/20 border border-gray-800 rounded p-2 text-xs text-gray-300 focus:outline-none focus:border-yellow-600 resize-none"
+                      />
+                  </div>
+                  
+                  {/* Custom Adjustments & Visuals (Merged) */}
+                  <div className="col-span-4 flex flex-col gap-1">
+                      <textarea 
+                          value={config.customInstructions}
+                          onChange={(e) => update(config.id, 'customInstructions', e.target.value)}
+                          placeholder="Custom Adjustments (Content & Visuals)..."
+                          className="w-full h-12 bg-black/20 border border-gray-800 rounded p-2 text-[10px] text-yellow-500 placeholder-gray-600 focus:outline-none focus:border-yellow-500 resize-none"
+                      />
+                      <div className="flex flex-col gap-1 mt-auto pt-1">
+                          <Throttle value={config.techLevel} onChange={(v:number) => update(config.id, 'techLevel', v)} leftLabel="Lite" rightLabel="Deep" />
+                          <Throttle value={config.humorLevel} onChange={(v:number) => update(config.id, 'humorLevel', v)} leftLabel="Dry" rightLabel="Wild" />
+                      </div>
+                  </div>
+              </div>
+
+              {/* Manuscript Override Toggle */}
+              <div className="border-t border-gray-800/50 pt-1">
+                  <button 
+                      onClick={() => setShowManuscript(!showManuscript)}
+                      className="text-[10px] text-gray-600 hover:text-gray-400 flex items-center gap-1 w-full"
+                  >
+                      {showManuscript ? <ChevronUp size={10}/> : <ChevronDown size={10}/>}
+                      Manuscript Override {config.manuscript ? '(Active)' : '(Empty)'}
+                  </button>
+                  
+                  {showManuscript && (
+                      <textarea 
+                          value={config.manuscript}
+                          onChange={(e) => update(config.id, 'manuscript', e.target.value)}
+                          onPaste={handlePaste}
+                          placeholder="Paste raw text here to bypass AI generation for this chapter..."
+                          className="w-full h-32 mt-2 bg-gray-950 border border-gray-800 rounded p-3 text-xs font-mono text-gray-400 focus:outline-none focus:border-red-500"
+                      />
+                  )}
+              </div>
+          </div>
+      );
+  };
+
+  return (
+    <div className="w-full bg-black border border-gray-800 rounded-xl overflow-hidden shadow-2xl animate-fadeIn">
+      {/* --- HEADER --- */}
+      <div className="p-6 border-b border-gray-800 bg-gradient-to-r from-gray-900 to-black">
+        <div className="flex flex-col gap-4">
+            <h2 className="text-yellow-500 font-bold tracking-widest uppercase text-xs flex items-center gap-2">
+                <Settings size={14} /> Y-It Control Panel v3.1
+            </h2>
+            
+            <div className="flex gap-2">
+                <div className="relative flex-1">
+                    <Search className="absolute left-3 top-3 text-gray-500" size={18} />
+                    <input
+                    type="text"
+                    value={topic}
+                    onChange={(e) => setTopic(e.target.value)}
+                    placeholder="Enter Investigation Topic (e.g. 'Dropshipping', 'Airbnb Arbitrage')..."
+                    className="w-full bg-gray-900 border border-gray-700 text-white pl-10 pr-4 py-3 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none font-bold"
+                    />
+                </div>
+                <button
+                    onClick={handleSubmit}
+                    disabled={isLoading || !topic}
+                    className="bg-yellow-500 hover:bg-yellow-400 text-black px-6 py-3 rounded-lg font-bold flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-[0_0_15px_rgba(234,179,8,0.3)]"
+                >
+                    {isLoading ? <Zap className="animate-spin" /> : <Zap />}
+                    <span className="hidden md:inline">IGNITE SWARM</span>
+                </button>
+            </div>
+        </div>
+      </div>
+
+      <div className="p-6 bg-[#050505] space-y-8">
+         {/* --- GLOBAL CONFIG --- */}
+         <div>
+             <div className="flex items-center justify-between mb-4">
+                 <h3 className="text-gray-400 text-xs font-bold uppercase tracking-wider flex items-center gap-2">
+                     <Activity size={14}/> Broad Directive
+                 </h3>
+                 <div className="flex gap-2">
+                     <button onClick={() => handleCopyTemplate(true)} className="text-[10px] bg-gray-900 border border-gray-700 px-2 py-1 rounded text-gray-400 hover:text-white flex items-center gap-1"><Copy size={10}/> Template (Empty)</button>
+                     <button onClick={handlePasteTemplate} className="text-[10px] bg-gray-900 border border-gray-700 px-2 py-1 rounded text-gray-400 hover:text-white flex items-center gap-1"><Clipboard size={10}/> Paste & Merge</button>
+                 </div>
+             </div>
+             
+             <textarea 
+                 value={globalConfig.broadPrompt}
+                 onChange={(e) => setGlobalConfig({...globalConfig, broadPrompt: e.target.value})}
+                 placeholder="The high-level concept. Who are we investigating? What is the angle?"
+                 className="w-full h-24 bg-gray-900/50 border border-gray-800 rounded-lg p-3 text-sm text-gray-200 focus:border-yellow-600 focus:outline-none mb-4"
+             />
+
+             {/* Global Rules Grid (Was Overrides) */}
+             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                 <div className="space-y-1">
+                     <label className="text-[10px] text-blue-500 font-bold uppercase flex items-center gap-1"><Bot size={10}/> Standard Tech Rules</label>
+                     <textarea 
+                        value={globalConfig.techImageRules}
+                        onChange={(e) => setGlobalConfig({...globalConfig, techImageRules: e.target.value})}
+                        className="w-full h-20 bg-gray-900/30 border border-gray-800 rounded p-2 text-xs focus:border-blue-500 focus:outline-none resize-none"
+                     />
+                 </div>
+                 <div className="space-y-1">
+                     <label className="text-[10px] text-purple-500 font-bold uppercase flex items-center gap-1"><Palette size={10}/> Standard Art Rules</label>
+                     <textarea 
+                        value={globalConfig.artisticImageRules}
+                        onChange={(e) => setGlobalConfig({...globalConfig, artisticImageRules: e.target.value})}
+                        className="w-full h-20 bg-gray-900/30 border border-gray-800 rounded p-2 text-xs focus:border-purple-500 focus:outline-none resize-none"
+                     />
+                 </div>
+                 <div className="space-y-1">
+                     <label className="text-[10px] text-yellow-500 font-bold uppercase flex items-center gap-1"><Smile size={10}/> Standard PosiBot Rules</label>
+                     <textarea 
+                        value={globalConfig.posibotRules}
+                        onChange={(e) => setGlobalConfig({...globalConfig, posibotRules: e.target.value})}
+                        className="w-full h-20 bg-gray-900/30 border border-gray-800 rounded p-2 text-xs focus:border-yellow-500 focus:outline-none resize-none"
+                     />
+                 </div>
+             </div>
+
+             <div className="grid grid-cols-2 gap-4">
+                 <div>
+                     <label className="text-[10px] text-gray-500 uppercase font-bold flex items-center gap-1"><Settings size={10}/> Visual Profile (Global)</label>
+                     <input 
+                        value={globalConfig.visualProfile}
+                        onChange={(e) => setGlobalConfig({...globalConfig, visualProfile: e.target.value})}
+                        placeholder="e.g. 'Dark Noir, High Contrast, Cyberpunk'"
+                        className="w-full bg-gray-900 border border-gray-800 rounded px-2 py-1.5 text-xs text-gray-300 focus:outline-none focus:border-gray-600 mt-1"
+                     />
+                 </div>
+                 <div>
+                     <label className="text-[10px] text-gray-500 uppercase font-bold flex items-center gap-1"><Sliders size={10}/> Tone Profile</label>
+                     <input 
+                        value={globalConfig.tone}
+                        onChange={(e) => setGlobalConfig({...globalConfig, tone: e.target.value})}
+                        className="w-full bg-gray-900 border border-gray-800 rounded px-2 py-1.5 text-xs text-gray-300 focus:outline-none focus:border-gray-600 mt-1"
+                     />
+                 </div>
+             </div>
+         </div>
+
+         {/* --- PRE-CHAPTER CONFIG --- */}
+         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4 border-t border-gray-900">
+             <div className="md:col-span-2">
+                 <label className="text-[10px] text-gray-500 uppercase font-bold block mb-1">Universal Chapter Title Prompt</label>
+                 <input 
+                    value={globalConfig.chapterTitlePrompt}
+                    onChange={(e) => setGlobalConfig({...globalConfig, chapterTitlePrompt: e.target.value})}
+                    className="w-full bg-gray-900/50 border border-gray-800 rounded px-3 py-2 text-xs text-gray-300 focus:outline-none focus:border-gray-600"
+                 />
+             </div>
+             <div>
+                 <label className="text-[10px] text-gray-500 uppercase font-bold block mb-1">Structure Funnel</label>
+                 <input 
+                    value={globalConfig.bookStructure}
+                    onChange={(e) => setGlobalConfig({...globalConfig, bookStructure: e.target.value})}
+                    placeholder="(Optional) Funnel Logic"
+                    className="w-full bg-gray-900/50 border border-gray-800 rounded px-3 py-2 text-xs text-gray-500 focus:outline-none focus:border-gray-600"
+                 />
+             </div>
+         </div>
+
+         {/* --- CHAPTER ARCHITECTURE --- */}
+         <div>
+             <div className="flex items-center justify-between mb-4">
+                 <h3 className="text-gray-400 text-xs font-bold uppercase tracking-wider flex items-center gap-2">
+                     <BookOpen size={14}/> Chapter Architecture
+                 </h3>
+                 
+                 <div className="flex items-center gap-6 bg-gray-900/50 px-3 py-1 rounded-lg border border-gray-800">
+                     <div className="flex items-center gap-2">
+                        <label className="text-[10px] text-gray-500 uppercase font-bold">Total Pages</label>
+                        <div className="relative">
+                            <Calculator size={12} className="absolute left-2 top-1.5 text-gray-500"/>
+                            <input 
+                                type="number" 
+                                value={targetTotalPages}
+                                onChange={(e) => handleSetTotalPages(parseInt(e.target.value))}
+                                className="w-16 pl-6 pr-1 bg-black border border-gray-700 rounded text-xs text-yellow-500 font-mono py-1 focus:outline-none focus:border-yellow-500"
+                            />
+                        </div>
+                     </div>
+
+                     <div className="h-4 w-px bg-gray-700"></div>
+
+                     <div className="flex items-center gap-2">
+                        <label className="text-[10px] text-gray-500 uppercase font-bold">Chapters</label>
+                        <div className="flex items-center bg-black border border-gray-700 rounded">
+                             <button onClick={() => setChapterCount(Math.max(1, chapterCount - 1))} className="px-2 text-gray-400 hover:text-white">-</button>
+                             <span className="text-xs font-mono w-6 text-center text-gray-300">{chapterCount}</span>
+                             <button onClick={() => setChapterCount(Math.min(20, chapterCount + 1))} className="px-2 text-gray-400 hover:text-white">+</button>
+                        </div>
+                     </div>
+                 </div>
+             </div>
+
+             <div className="space-y-3">
+                 {chapters.slice(0, chapterCount).map(ch => (
+                     <ChapterRow key={ch.id} config={ch} />
+                 ))}
+             </div>
+
+             {/* Addendums */}
+             <div className="mt-8">
+                 <div className="flex items-center justify-between mb-2">
+                    <h4 className="text-xs text-purple-500 font-bold uppercase tracking-wider">Addendums</h4>
+                    <div className="flex items-center bg-black border border-gray-700 rounded">
+                        <button onClick={() => setAddendumCount(Math.max(0, addendumCount - 1))} className="px-2 text-gray-400 hover:text-white">-</button>
+                        <span className="text-xs font-mono w-6 text-center text-gray-300">{addendumCount}</span>
+                        <button onClick={() => setAddendumCount(Math.min(10, addendumCount + 1))} className="px-2 text-gray-400 hover:text-white">+</button>
+                    </div>
+                 </div>
+                 {addendumCount > 0 && (
+                     <div className="space-y-3">
+                         {addendums.slice(0, addendumCount).map(ch => (
+                             <ChapterRow key={ch.id} config={ch} isAddendum />
+                         ))}
+                     </div>
+                 )}
+             </div>
+         </div>
+
+         {/* --- BOTTOM SYSTEM CONFIG --- */}
+         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-gray-900">
+             <div>
+                 <label className="text-[10px] text-red-500 uppercase font-bold block mb-1">KDP Specs (Mandatory)</label>
+                 <textarea 
+                    value={globalConfig.kdpRules}
+                    onChange={(e) => setGlobalConfig({...globalConfig, kdpRules: e.target.value})}
+                    className="w-full h-16 bg-red-900/10 border border-red-900/30 rounded p-2 text-xs text-gray-300 focus:outline-none focus:border-red-500 resize-none"
+                 />
+             </div>
+             <div>
+                 <label className="text-[10px] text-gray-500 uppercase font-bold block mb-1">Systemic Adjustments (Prompt Override)</label>
+                 <textarea 
+                    value={globalConfig.systemicAdjustments}
+                    onChange={(e) => setGlobalConfig({...globalConfig, systemicAdjustments: e.target.value})}
+                    placeholder="Overrides the base SYSTEM PROMPT..."
+                    className="w-full h-16 bg-gray-900 border border-gray-800 rounded p-2 text-xs text-gray-300 focus:outline-none focus:border-gray-500 resize-none"
+                 />
+             </div>
+         </div>
+      </div>
+    </div>
+  );
+}

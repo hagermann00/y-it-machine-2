@@ -1,69 +1,71 @@
 
-export const Y_IT_NANO_BOOK_SPEC = `
-# Y-It Nano-Book System Documentation
 
-## Project Overview
-The Y-It nano-book system creates truth-based guides exposing high-failure business opportunities.
-Mission: Tell uncomfortable truths about businesses everyone talks about but few succeed at.
+export const DEFAULT_STRUCTURE_SPEC = `
+# Universal 8-Chapter Structure (Condensed Edition)
 
-## Universal 8-Chapter Structure (Condensed Edition)
+## Chapter 1: THE LIE
+**Purpose:** Deconstruct false narrative.
+**Length:** 1000+ words.
+**Content:** The seductive pitch, market size illusion, real failure rates (99%+).
 
-### Chapter 1: THE LIE
-**Tone:** Satirical, counterintuitive, data-led
-**Purpose:** Deconstruct false narrative, establish credibility
-**Content:** The seductive pitch, market size illusion, real failure rates (99%+), "Promise vs Reality" comparison.
-**Visuals:** Hero image (metaphor for doomed business), Data visualization (Promise vs Reality).
-
-### Chapter 2: THE ROADMAP (LEAD MAGNET)
-**Tone:** Straight-faced parody, instruction manual style
-**Purpose:** Give away the "guru playbook" (product research -> automation) for free.
+## Chapter 2: THE ROADMAP (LEAD MAGNET)
+**Purpose:** Give away the "guru playbook" for free.
 **Content:** 10-step method breakdown delivered neutrally.
-**PosiBot:** Heavy presence (2-3 sidebars).
 
-### Chapter 3: THE MATH
-**Tone:** Analytical, forensic, unforgiving
+## Chapter 3: THE MATH
 **Purpose:** Destroy "$500 startup" myth.
-**Content:** Official cost vs Actual 3-month costs, hidden multipliers, psychological costs.
-**Visuals:** Waterfall chart showing cost escalation.
+**Content:** Official cost vs Actual 3-month costs, hidden multipliers.
 
-### Chapter 4: CASE STUDIES
-**Tone:** Empathetic but unflinching
+## Chapter 4: CASE STUDIES
 **Purpose:** Show diverse smart people fail.
-**Content:** 7-11 compressed failure stories (Winners and Losers). Universal archetypes (The Side Hustler, The Unemployed Escapee, etc).
-**PosiBot:** NONE (Keep serious).
+**Content:** 7-11 compressed failure stories (Winners and Losers).
 
-### Chapter 5: HIDDEN KILLERS
-**Tone:** Forensic, clinical
-**Purpose:** Identify systematic failures.
-**Content:** 5-7 mechanisms (Margin compression, CAC inflation, etc).
+## Chapter 5: HIDDEN KILLERS
+**Purpose:** Identify systematic failures (Margin compression, CAC inflation).
 
-### Chapter 6: DECISION FRAMEWORK
-**Tone:** Honest, practical, tough-love
-**Purpose:** Evidence-based decision.
-**Content:** Honest checklist, scoring system, "For 90-95%, don't do this".
+## Chapter 6: DECISION FRAMEWORK
+**Purpose:** Evidence-based decision checklist.
 
-### Chapter 7: ALTERNATIVES
-**Tone:** Constructive, pragmatic
-**Purpose:** Realistic alternatives.
-**Content:** Freelancing, Hybrid Model, Index Investing, Industry Job.
+## Chapter 7: ALTERNATIVES
+**Purpose:** Realistic alternatives (Freelancing, Index Investing).
 
-### Chapter 8: IF YOU'RE STILL HERE
-**Tone:** Constructive, honest, cautiously optimistic
+## Chapter 8: IF YOU'RE STILL HERE
 **Purpose:** Realistic path for the 5-10%.
-**Content:** The honesty contract, 7 Guardrails (Set loss limits, don't quit job).
-
-## PosiBot Sidebar Images
-Character: Overly optimistic AI robot. Ultra-short quotes (10-20 words).
-Placements:
-- Ch 1: 2 quotes
-- Ch 2: 2-3 quotes
-- Ch 3: 2 quotes
-- Ch 4: 0 quotes
-- Ch 5: 2 quotes
-- Ch 6: 1 quote
-- Ch 7: 1 quote
-- Ch 8: 2 quotes
 `;
+
+export const DEFAULT_DENSITY_SPEC = `
+# Visual & Sidebar Rules
+
+## Image Frequency
+- Target: 1 Hero Image per Chapter Title.
+- Target: 2-3 Data Visualizations (Charts/Graphs) per chapter.
+- Target: 1 "Metaphorical" image per chapter body.
+
+## PosiBot Sidebar Frequency
+- Ch 1: 2 quotes (High sarcasm)
+- Ch 2: 3 quotes (Interrupting instructions)
+- Ch 3: 2 quotes (Denying math)
+- Ch 4: 0 quotes (Serious tone)
+- Ch 5-8: 1 quote per chapter
+`;
+
+export const DEFAULT_ART_SPEC = `
+# Chapter Title Art Direction
+
+## Style Guide
+- Style: Surrealist Noir / High-Contrast Digital Art.
+- Color Palette: Black, White, Danger Yellow.
+- Vibe: Foreboding but sophisticated.
+
+## Chapter Concepts
+- Ch 1 (The Lie): A golden apple rotting from the inside.
+- Ch 2 (Roadmap): A maze that leads off a cliff.
+- Ch 3 (The Math): A burning calculator or wallet.
+- Ch 4 (Case Studies): Silhouettes of people falling.
+- Ch 5 (Killers): Hidden gears crushing a coin.
+`;
+
+export const Y_IT_NANO_BOOK_SPEC = DEFAULT_STRUCTURE_SPEC + "\n" + DEFAULT_DENSITY_SPEC + "\n" + DEFAULT_ART_SPEC;
 
 export const RESEARCH_SYSTEM_PROMPT = `
 You are the Y-It Deep Forensic Engine. You are NOT a creative writer. You are an investigator.
@@ -115,19 +117,52 @@ Success rates, median earnings (not average), churn rates, saturation levels.
 Find academic papers or marketplace transparency reports.
 `;
 
-export const AUTHOR_SYSTEM_PROMPT = `
-You are the Y-It Lead Author. You take raw forensic research and turn it into a compelling, satirical, and highly structured "Nano-Book".
+// --- New Architect / Ghostwriter Prompts ---
+
+export const AUTHOR_OUTLINE_PROMPT = `
+You are the ARCHITECT of the Y-It Nano-Book.
+Your job is to design the structure of a high-impact, satirical business book based on the provided Research Data.
 
 **GOAL:**
-Write a structured book based on the provided Research Data and the User's Specification.
+Create a comprehensive JSON Outline.
+For each chapter, you must provide a "Detailed Brief" that tells the Ghostwriter EXACTLY what to write.
 
-**TONE:**
-Satirical, forensic, data-driven, yet empathetic to the victim (the reader).
+**ARCHITECTURAL RULES:**
+1. **Structure:** Follow the 8-Chapter Y-It Structure (The Lie -> Roadmap -> Math -> Case Studies -> Killers -> Decision -> Alternatives -> Conclusion).
+2. **Cohesion:** Ensure the narrative arc moves from "Destruction of the Myth" to "Constructive Reality".
+3. **The Brief:** The \`detailedBrief\` for each chapter must be substantial (50-100 words). It must list:
+   - The specific "Lie" being attacked in this chapter.
+   - The specific data points (from research) to use.
+   - The tone required (e.g., "Forensic", "Mocking", "Serious").
+   - The visual elements to describe.
 
-**INSTRUCTIONS:**
-1. Use the provided "Research Data" as your source of truth. Do not hallucinate new stats if the research provides them.
-2. Follow the "Book Specification" exactly for chapter structure and tone.
-3. Include visual descriptions for every chapter.
+**OUTPUT:**
+Return a JSON object matching the OutlineSchema.
+`;
+
+export const AUTHOR_CHAPTER_PROMPT = `
+You are the Y-It Ghostwriter.
+You are writing ONE specific chapter of a book, based on a specific "Chapter Brief" provided by the Architect.
+
+**INPUTS:**
+- **Topic:** The subject of the book.
+- **Research Data:** The source of truth for facts/stats.
+- **Chapter Brief:** Your specific instructions for THIS chapter.
+- **Book Context:** Title and Tone.
+
+**WRITING RULES:**
+1. **Length:** Write a deep, substantial chapter (Target: 1000-1500 words). Do not write summaries. Write the full text.
+2. **Formatting:** Use Markdown. Use H2 (##) and H3 (###) subheaders frequently to break up text.
+3. **Voice:** Satirical, forensic, tough-love. Address the reader directly ("You thought it was easy...").
+4. **PosiBot:** Insert "PosiBot" quotes if the brief asks for them. PosiBot is a toxic-positivity AI that interrupts the hard truths.
+5. **Visuals:** Insert [Visual: ...] blocks as requested in the brief.
+
+**OUTPUT:**
+Return a JSON object with 'content', 'visuals', and 'posiBotQuotes'.
+`;
+
+export const AUTHOR_SYSTEM_PROMPT = `
+(Deprecated - Use Outline/Chapter prompts)
 `;
 
 export const POSIBOT_QUOTES = [
@@ -144,3 +179,28 @@ export const IMAGE_MODELS = [
     { id: 'gemini-2.5-flash-image', name: 'Gemini Flash (Fast, Standard)' },
     { id: 'imagen-3.0-generate-001', name: 'Imagen 3 (Backup)' }
 ];
+
+// --- Podcast Constants ---
+
+export const PODCAST_VOICES = [
+    { id: 'Puck', label: 'Puck (Playful, Energetic)' },
+    { id: 'Charon', label: 'Charon (Deep, Authoritative)' },
+    { id: 'Kore', label: 'Kore (Calm, Soothing)' },
+    { id: 'Fenrir', label: 'Fenrir (Intense, Grit)' },
+    { id: 'Zephyr', label: 'Zephyr (Smooth, Neutral)' }
+];
+
+export const PODCAST_PRODUCER_PROMPT = `
+You are the Executive Producer of "The Reality Check", a podcast that exposes side hustles.
+Your job is to take raw research data and convert it into a dynamic, two-person dialogue script.
+
+**CHARACTERS:**
+- HOST 1: The skeptic, the journalist. Drives the facts. (Speaker Name: "Host 1")
+- HOST 2: The curious learner, or the "devil's advocate". asks the questions the audience is thinking. (Speaker Name: "Host 2")
+
+**FORMAT:**
+Return a strictly formatted JSON object containing the script.
+The script should be conversational, using natural language, interruptions, and "aha" moments.
+Do not use sound effects in the text.
+Use the Research Data provided to fuel the arguments.
+`;

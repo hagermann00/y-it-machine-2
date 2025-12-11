@@ -1,3 +1,4 @@
+
 import { z } from "zod";
 
 // --- Research Schemas ---
@@ -19,7 +20,7 @@ export const CaseStudySchema = z.object({
 
 export const AffiliateOppSchema = z.object({
   program: z.string(),
-  potential: z.string(),
+  potential: z.string().optional(),
   type: z.enum(['PARTICIPANT', 'WRITER']),
   commission: z.string(),
   notes: z.string(),
@@ -76,3 +77,46 @@ export const BookSchema = z.object({
 });
 
 export type ValidatedBook = z.infer<typeof BookSchema>;
+
+// --- Architecture Schemas (Step 1 of Generation) ---
+
+export const ChapterBriefSchema = z.object({
+  number: z.number(),
+  title: z.string(),
+  detailedBrief: z.string(), // Instructions for the Ghostwriter
+});
+
+export const OutlineSchema = z.object({
+  title: z.string(),
+  subtitle: z.string(),
+  frontCover: CoverSchema.optional(),
+  backCover: CoverSchema.optional(),
+  chapterBriefs: z.array(ChapterBriefSchema),
+});
+
+export type ValidatedOutline = z.infer<typeof OutlineSchema>;
+
+// --- Chapter Content Schemas (Step 2 of Generation) ---
+
+export const ChapterContentSchema = z.object({
+  content: z.string(), // Markdown
+  posiBotQuotes: z.array(PosiBotQuoteSchema).optional(),
+  visuals: z.array(VisualElementSchema).optional(),
+});
+
+export type ValidatedChapterContent = z.infer<typeof ChapterContentSchema>;
+
+
+// --- Podcast Schemas ---
+
+export const PodcastScriptLineSchema = z.object({
+    speaker: z.string(), // "Host 1" or "Host 2"
+    text: z.string()
+});
+
+export const PodcastScriptSchema = z.object({
+    title: z.string(),
+    lines: z.array(PodcastScriptLineSchema)
+});
+
+export type ValidatedPodcastScript = z.infer<typeof PodcastScriptSchema>;
