@@ -15,6 +15,7 @@ const AppContent: React.FC = () => {
   const [showBranchMenu, setShowBranchMenu] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
+  const [isCreatingBranch, setIsCreatingBranch] = useState(false);
   const [exportSettings, setExportSettings] = useState<ExportSettings>({
       trimSize: '6x9',
       includeBleed: false,
@@ -157,8 +158,12 @@ const AppContent: React.FC = () => {
                                 <GitBranch size={20} /> Generate Alternative Draft
                             </h3>
                             <InputSection 
-                                onGenerate={(topic, settings) => createBranch(settings)} 
-                                isLoading={state.status === 'RESEARCHING'} 
+                                onGenerate={async (topic, settings) => {
+                                  setIsCreatingBranch(true);
+                                  await createBranch(settings);
+                                  setIsCreatingBranch(false);
+                                }} 
+                                isLoading={isCreatingBranch} 
                                 existingResearchTopic={state.project.topic}
                                 defaultSettings={state.project.branches[0]?.settings}
                             />
