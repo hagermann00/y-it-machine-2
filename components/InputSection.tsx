@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Search, Settings, ChevronDown, ChevronUp, AlertCircle, GitBranch, Zap, Plus, Image as ImageIcon, Trash2, Upload, FileText, Activity, Smile, Bot, Copy, Clipboard, FileEdit, Calculator, BookOpen, Palette, Sliders } from 'lucide-react';
+import { Search, Settings, ChevronDown, ChevronUp, AlertCircle, GitBranch, Zap, Plus, Image as ImageIcon, Trash2, Upload, FileText, Activity, Smile, Bot, Copy, Clipboard, FileEdit, Calculator, BookOpen, Palette, Sliders, FileJson, Scale, ShieldAlert } from 'lucide-react';
 import { GenSettings, ImageModelID } from '../types';
 import { IMAGE_MODELS } from '../constants';
 
@@ -28,14 +28,16 @@ interface ChapterConfig {
 
 interface GlobalConfig {
   broadPrompt: string;
-  bookStructure: string; // Funnel
+  bookStructure: string;
   tone: string;
   toneThrottle: number;
-  visualProfile: string; // Was Custom Adjustments
+  visualProfile: string; 
   colorScheme: string;
+  // Standard Rules
   posibotRules: string;
   techImageRules: string;
   artisticImageRules: string;
+  // System
   kdpRules: string;
   systemicAdjustments: string;
   technicalLevel: number;
@@ -43,14 +45,30 @@ interface GlobalConfig {
   chapterTitlePrompt: string;
 }
 
+const PLACEHOLDERS = {
+    broadPrompt: "DEFINITION: The overarching creative direction and thematic summary for the entire book. Sets the conceptual foundation that all chapters and visuals should align with.",
+    bookStructure: "DEFINITION: High-level structural blueprint including chapter count, section types, pacing rhythm, and placement of recurring elements (case studies, PosiBot interruptions, visual breaks).",
+    tone: "DEFINITION: The dominant voice and attitude of the writing. Example values: 'Satirical Forensic', 'Empathetic Cynic', 'Deadpan Academic'. Must remain consistent across all content.",
+    visualProfile: "DEFINITION: The overarching visual identity governing all imagery—style references, mood, texture, and aesthetic family. Ensures visual cohesion across title pages, diagrams, and artistic pieces.",
+    colorScheme: "DEFINITION: Primary color palette for all visual elements. Format as comma-separated values. Example: 'Black/White/Yellow'. All generated images must adhere to this palette.",
+    posibotRules: "DEFINITION: Behavioral guidelines for the PosiBot character. Defines when PosiBot appears, what triggers interruptions, speech patterns, and the type of delusional optimism employed.",
+    techImageRules: "DEFINITION: Specifications for technical/informational imagery—charts, diagrams, flowcharts, data visualizations. Defines style (high contrast, gritty, corporate parody) and thematic approach.",
+    artisticImageRules: "DEFINITION: Specifications for artistic/conceptual imagery—chapter title pages, mood pieces, symbolic illustrations. Defines aesthetic family (e.g., surrealist noir, digital grit) and recurring visual motifs.",
+    kdpRules: "DEFINITION: Amazon KDP technical specifications. Must include: Trim size, margin widths (outer and gutter), mirror margin setting, bleed requirements, DPI minimums.",
+    systemicAdjustments: "DEFINITION: Any global overrides or modifications to default behaviors—temporary tonal shifts, experimental formatting, or per-book exceptions to standard rules.",
+    chapterTitlePrompt: "DEFINITION: The default image generation prompt template for chapter title pages. Should reference visual style, color constraints, and thematic symbolism."
+};
+
 export default function InputSection({ onGenerate, isLoading, existingResearchTopic, defaultSettings }: InputSectionProps) {
   const [topic, setTopic] = useState(existingResearchTopic || '');
   const [showAdvanced, setShowAdvanced] = useState(true);
+  const [showImport, setShowImport] = useState(false);
+  const [importText, setImportText] = useState('');
   
   // --- Metrics ---
   const [chapterCount, setChapterCount] = useState(8);
   const [addendumCount, setAddendumCount] = useState(2);
-  const [targetTotalPages, setTargetTotalPages] = useState(80); // Default 10 * 8
+  const [targetTotalPages, setTargetTotalPages] = useState(80); 
 
   // --- Global State ---
   const [globalConfig, setGlobalConfig] = useState<GlobalConfig>({
@@ -58,11 +76,11 @@ export default function InputSection({ onGenerate, isLoading, existingResearchTo
     bookStructure: '',
     tone: 'Satirical Forensic',
     toneThrottle: 80,
-    visualProfile: '', // Renamed from Custom Adjustments
+    visualProfile: 'Surrealist noir, digital grit, silhouettes of failure.', 
     colorScheme: 'Black/White/Yellow',
-    posibotRules: 'Interrupt when the reader gets hopeful. Deny math. Use corporate buzzwords.',
-    techImageRules: 'High contrast diagrams, flowcharts that lead to dead ends, burning money graphs.',
-    artisticImageRules: 'Surrealist noir, digital grit, silhouettes of failure.',
+    posibotRules: 'Interrupts with toxic positivity when math gets too real.',
+    techImageRules: 'High contrast diagrams with red arrows indicating loss.',
+    artisticImageRules: 'Surrealist noir concept art, high contrast.',
     kdpRules: 'Trim: 6x9. Margins: 0.5" Outer, 0.75" Gutter. Mirror Margins enabled.',
     systemicAdjustments: '',
     technicalLevel: 70,
@@ -167,35 +185,73 @@ export default function InputSection({ onGenerate, isLoading, existingResearchTo
       alert(empty ? "Empty Template Copied!" : "Full Config Copied!");
   };
 
+  const handleManualImport = () => {
+    try {
+        const data = JSON.parse(importText);
+        applyTemplateData(data);
+        setImportText('');
+        setShowImport(false);
+    } catch (e) {
+        alert("Invalid JSON format");
+    }
+  };
+
   const handlePasteTemplate = async () => {
       try {
           const text = await navigator.clipboard.readText();
           const data = JSON.parse(text);
-          
-          if (data.global) {
-              // Smart Merge: Only overwrite if data exists in paste, otherwise keep current
-              setGlobalConfig(prev => ({
-                  ...prev,
-                  ...Object.fromEntries(Object.entries(data.global).filter(([_, v]) => v !== ""))
-              }));
-          }
-          if (data.chapterCount) setChapterCount(data.chapterCount);
-          if (data.addendumCount) setAddendumCount(data.addendumCount);
-          
-          if (Array.isArray(data.chapters)) {
-              setChapters(prev => prev.map(ch => {
-                  const pasted = data.chapters.find((p: any) => p.id === ch.id);
-                  if (pasted) {
-                      // Merge fields
-                      return { ...ch, ...pasted };
-                  }
-                  return ch;
-              }));
-          }
-          alert("Template Merged Successfully!");
+          applyTemplateData(data);
       } catch (e) {
-          alert("Invalid Template JSON");
+          alert("Clipboard read failed or Invalid JSON. Try using the Manual Import box.");
+          setShowImport(true);
       }
+  };
+
+  const applyTemplateData = (data: any) => {
+      if (data.global) {
+          setGlobalConfig(prev => ({
+              ...prev,
+              ...Object.fromEntries(Object.entries(data.global).filter(([_, v]) => v !== ""))
+          }));
+      }
+      if (data.chapterCount) setChapterCount(data.chapterCount);
+      if (data.addendumCount) setAddendumCount(data.addendumCount);
+      
+      // Handle Chapters
+      if (Array.isArray(data.chapters)) {
+          setChapters(prev => prev.map((ch, idx) => {
+              // 1. Handle String Arrays (Simple Outline List)
+              if (typeof data.chapters[idx] === 'string') {
+                   return { ...ch, outline: data.chapters[idx] };
+              }
+              // 2. Handle Object Arrays (Full Config)
+              else if (typeof data.chapters[idx] === 'object') {
+                   // Try to match by ID if present, otherwise use index
+                   const pasted = data.chapters.find((p: any) => p.id === ch.id);
+                   if (pasted) return { ...ch, ...pasted };
+                   // Fallback to index if no ID
+                   if (data.chapters[idx]) return { ...ch, ...data.chapters[idx] };
+              }
+              return ch;
+          }));
+      }
+
+      // Handle Addendums
+      if (Array.isArray(data.addendums)) {
+        setAddendums(prev => prev.map((ch, idx) => {
+            if (typeof data.addendums[idx] === 'string') {
+                 return { ...ch, outline: data.addendums[idx] };
+            }
+            else if (typeof data.addendums[idx] === 'object') {
+                 const pasted = data.addendums.find((p: any) => p.id === ch.id);
+                 if (pasted) return { ...ch, ...pasted };
+                 if (data.addendums[idx]) return { ...ch, ...data.addendums[idx] };
+            }
+            return ch;
+        }));
+    }
+
+      alert("Template Merged Successfully!");
   };
 
   // --- Compilation ---
@@ -206,11 +262,15 @@ export default function InputSection({ onGenerate, isLoading, existingResearchTo
     spec += `**Broad Concept:** ${globalConfig.broadPrompt}\n`;
     spec += `**Tone:** ${globalConfig.tone} (Intensity: ${globalConfig.toneThrottle}%)\n`;
     spec += `**Structure Funnel:** ${globalConfig.bookStructure}\n`;
-    spec += `**Visual Profile:** ${globalConfig.visualProfile}\n`;
+    spec += `**Visual Profile (Master Aesthetic):** ${globalConfig.visualProfile}\n`;
     spec += `**Color Scheme:** ${globalConfig.colorScheme}\n`;
-    spec += `**Standard Tech Rules:** ${globalConfig.techImageRules}\n`;
-    spec += `**Standard Art Rules:** ${globalConfig.artisticImageRules}\n`;
-    spec += `**Standard PosiBot Rules:** ${globalConfig.posibotRules}\n`;
+    
+    spec += `\n## Standard Rules (Overrides)\n`;
+    spec += `**PosiBot Rules:** ${globalConfig.posibotRules}\n`;
+    spec += `**Tech Image Rules:** ${globalConfig.techImageRules}\n`;
+    spec += `**Art Image Rules:** ${globalConfig.artisticImageRules}\n`;
+    
+    spec += `\n## System Specs\n`;
     spec += `**KDP Rules:** ${globalConfig.kdpRules}\n`;
     spec += `**Systemic Adjustments:** ${globalConfig.systemicAdjustments}\n`;
     
@@ -221,7 +281,7 @@ export default function InputSection({ onGenerate, isLoading, existingResearchTo
              spec += `[MANUSCRIPT OVERRIDE ENABLED]\n${ch.manuscript}\n`;
         } else {
              spec += `**Outline:** ${ch.outline || "Auto-generate based on structure"}\n`;
-             spec += `**Custom Instructions (Content & Visuals):** ${ch.customInstructions || "None"}\n`;
+             spec += `**Custom Adjustments:** ${ch.customInstructions || "None"}\n`;
              spec += `**Title Prompt:** ${globalConfig.chapterTitlePrompt}\n`;
              spec += `**Targets:** ${ch.pages} Pages, ~${ch.words} Words.\n`;
              spec += `**Elements:** ${ch.posibots} PosiBots, ${ch.techBars} Charts, ${ch.funnyImages} Satirical Images.\n`;
@@ -344,10 +404,11 @@ export default function InputSection({ onGenerate, isLoading, existingResearchTo
                   
                   {/* Custom Adjustments & Visuals (Merged) */}
                   <div className="col-span-4 flex flex-col gap-1">
+                      <label className="text-[9px] text-gray-500 font-bold uppercase">Custom Adjustments</label>
                       <textarea 
                           value={config.customInstructions}
                           onChange={(e) => update(config.id, 'customInstructions', e.target.value)}
-                          placeholder="Custom Adjustments (Content & Visuals)..."
+                          placeholder="Unique Content & Visual directives for this chapter."
                           className="w-full h-12 bg-black/20 border border-gray-800 rounded p-2 text-[10px] text-yellow-500 placeholder-gray-600 focus:outline-none focus:border-yellow-500 resize-none"
                       />
                       <div className="flex flex-col gap-1 mt-auto pt-1">
@@ -421,62 +482,103 @@ export default function InputSection({ onGenerate, isLoading, existingResearchTo
                      <Activity size={14}/> Broad Directive
                  </h3>
                  <div className="flex gap-2">
-                     <button onClick={() => handleCopyTemplate(true)} className="text-[10px] bg-gray-900 border border-gray-700 px-2 py-1 rounded text-gray-400 hover:text-white flex items-center gap-1"><Copy size={10}/> Template (Empty)</button>
-                     <button onClick={handlePasteTemplate} className="text-[10px] bg-gray-900 border border-gray-700 px-2 py-1 rounded text-gray-400 hover:text-white flex items-center gap-1"><Clipboard size={10}/> Paste & Merge</button>
+                     <button onClick={() => handleCopyTemplate(true)} className="text-[10px] bg-gray-900 border border-gray-700 px-2 py-1 rounded text-gray-400 hover:text-white flex items-center gap-1"><Copy size={10}/> Template</button>
+                     <button onClick={handlePasteTemplate} className="text-[10px] bg-gray-900 border border-gray-700 px-2 py-1 rounded text-gray-400 hover:text-white flex items-center gap-1"><Clipboard size={10}/> Paste</button>
+                     <button onClick={() => setShowImport(!showImport)} className="text-[10px] bg-gray-900 border border-gray-700 px-2 py-1 rounded text-gray-400 hover:text-white flex items-center gap-1"><FileJson size={10}/> Manual Import</button>
                  </div>
              </div>
+
+             {/* Manual Import Box */}
+             {showImport && (
+                 <div className="mb-4 bg-gray-900 p-4 rounded border border-gray-700 animate-slideDown">
+                     <label className="text-[10px] text-gray-500 font-bold uppercase block mb-2">Paste JSON Template Here</label>
+                     <textarea 
+                        value={importText}
+                        onChange={(e) => setImportText(e.target.value)}
+                        className="w-full h-32 bg-black border border-gray-800 rounded p-2 text-xs font-mono text-green-500 focus:outline-none focus:border-green-500 mb-2"
+                        placeholder='{"global": {...}, "chapters": ["Line 1", "Line 2"] }'
+                     />
+                     <button onClick={handleManualImport} className="bg-green-600 hover:bg-green-500 text-white px-4 py-1 rounded text-xs font-bold w-full">Apply Template</button>
+                 </div>
+             )}
              
              <textarea 
                  value={globalConfig.broadPrompt}
                  onChange={(e) => setGlobalConfig({...globalConfig, broadPrompt: e.target.value})}
-                 placeholder="The high-level concept. Who are we investigating? What is the angle?"
+                 placeholder={PLACEHOLDERS.broadPrompt}
                  className="w-full h-24 bg-gray-900/50 border border-gray-800 rounded-lg p-3 text-sm text-gray-200 focus:border-yellow-600 focus:outline-none mb-4"
              />
 
-             {/* Global Rules Grid (Was Overrides) */}
-             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                 <div className="space-y-1">
-                     <label className="text-[10px] text-blue-500 font-bold uppercase flex items-center gap-1"><Bot size={10}/> Standard Tech Rules</label>
+             {/* Visual Profile */}
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                 <div>
+                     <label className="text-[10px] text-gray-500 font-bold uppercase flex items-center gap-1 mb-1"><Palette size={10}/> Visual Profile (Master)</label>
                      <textarea 
-                        value={globalConfig.techImageRules}
-                        onChange={(e) => setGlobalConfig({...globalConfig, techImageRules: e.target.value})}
-                        className="w-full h-20 bg-gray-900/30 border border-gray-800 rounded p-2 text-xs focus:border-blue-500 focus:outline-none resize-none"
+                        value={globalConfig.visualProfile}
+                        onChange={(e) => setGlobalConfig({...globalConfig, visualProfile: e.target.value})}
+                        placeholder={PLACEHOLDERS.visualProfile}
+                        className="w-full h-20 bg-gray-900/30 border border-gray-800 rounded p-2 text-xs text-gray-300 focus:border-purple-500 focus:outline-none resize-none"
                      />
                  </div>
-                 <div className="space-y-1">
-                     <label className="text-[10px] text-purple-500 font-bold uppercase flex items-center gap-1"><Palette size={10}/> Standard Art Rules</label>
+                 <div>
+                     <label className="text-[10px] text-gray-500 font-bold uppercase flex items-center gap-1 mb-1"><Palette size={10}/> Color Scheme</label>
                      <textarea 
-                        value={globalConfig.artisticImageRules}
-                        onChange={(e) => setGlobalConfig({...globalConfig, artisticImageRules: e.target.value})}
-                        className="w-full h-20 bg-gray-900/30 border border-gray-800 rounded p-2 text-xs focus:border-purple-500 focus:outline-none resize-none"
-                     />
-                 </div>
-                 <div className="space-y-1">
-                     <label className="text-[10px] text-yellow-500 font-bold uppercase flex items-center gap-1"><Smile size={10}/> Standard PosiBot Rules</label>
-                     <textarea 
-                        value={globalConfig.posibotRules}
-                        onChange={(e) => setGlobalConfig({...globalConfig, posibotRules: e.target.value})}
-                        className="w-full h-20 bg-gray-900/30 border border-gray-800 rounded p-2 text-xs focus:border-yellow-500 focus:outline-none resize-none"
+                        value={globalConfig.colorScheme}
+                        onChange={(e) => setGlobalConfig({...globalConfig, colorScheme: e.target.value})}
+                        placeholder={PLACEHOLDERS.colorScheme}
+                        className="w-full h-20 bg-gray-900/30 border border-gray-800 rounded p-2 text-xs text-gray-300 focus:border-purple-500 focus:outline-none resize-none"
                      />
                  </div>
              </div>
 
              <div className="grid grid-cols-2 gap-4">
                  <div>
-                     <label className="text-[10px] text-gray-500 uppercase font-bold flex items-center gap-1"><Settings size={10}/> Visual Profile (Global)</label>
-                     <input 
-                        value={globalConfig.visualProfile}
-                        onChange={(e) => setGlobalConfig({...globalConfig, visualProfile: e.target.value})}
-                        placeholder="e.g. 'Dark Noir, High Contrast, Cyberpunk'"
-                        className="w-full bg-gray-900 border border-gray-800 rounded px-2 py-1.5 text-xs text-gray-300 focus:outline-none focus:border-gray-600 mt-1"
-                     />
-                 </div>
-                 <div>
                      <label className="text-[10px] text-gray-500 uppercase font-bold flex items-center gap-1"><Sliders size={10}/> Tone Profile</label>
                      <input 
                         value={globalConfig.tone}
                         onChange={(e) => setGlobalConfig({...globalConfig, tone: e.target.value})}
+                        placeholder={PLACEHOLDERS.tone}
                         className="w-full bg-gray-900 border border-gray-800 rounded px-2 py-1.5 text-xs text-gray-300 focus:outline-none focus:border-gray-600 mt-1"
+                     />
+                 </div>
+                 <div>
+                     <label className="text-[10px] text-gray-500 uppercase font-bold flex items-center gap-1"><Activity size={10}/> Intensity ({globalConfig.toneThrottle}%)</label>
+                     <Throttle value={globalConfig.toneThrottle} onChange={(v:number) => setGlobalConfig({...globalConfig, toneThrottle: v})} leftLabel="Mild" rightLabel="Max" />
+                 </div>
+             </div>
+         </div>
+         
+         {/* --- STANDARD RULES (The "Overrides") --- */}
+         <div className="pt-4 border-t border-gray-900">
+             <h3 className="text-gray-400 text-xs font-bold uppercase tracking-wider flex items-center gap-2 mb-3">
+                 <ShieldAlert size={14}/> Standard Rules
+             </h3>
+             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                 <div>
+                     <label className="text-[10px] text-gray-500 uppercase font-bold block mb-1">PosiBot Rules</label>
+                     <textarea 
+                        value={globalConfig.posibotRules}
+                        onChange={(e) => setGlobalConfig({...globalConfig, posibotRules: e.target.value})}
+                        placeholder={PLACEHOLDERS.posibotRules}
+                        className="w-full h-24 bg-gray-900/50 border border-gray-800 rounded p-2 text-xs text-gray-300 focus:outline-none focus:border-blue-500 resize-none"
+                     />
+                 </div>
+                 <div>
+                     <label className="text-[10px] text-gray-500 uppercase font-bold block mb-1">Tech Image Rules</label>
+                     <textarea 
+                        value={globalConfig.techImageRules}
+                        onChange={(e) => setGlobalConfig({...globalConfig, techImageRules: e.target.value})}
+                        placeholder={PLACEHOLDERS.techImageRules}
+                        className="w-full h-24 bg-gray-900/50 border border-gray-800 rounded p-2 text-xs text-gray-300 focus:outline-none focus:border-blue-500 resize-none"
+                     />
+                 </div>
+                 <div>
+                     <label className="text-[10px] text-gray-500 uppercase font-bold block mb-1">Artistic Image Rules</label>
+                     <textarea 
+                        value={globalConfig.artisticImageRules}
+                        onChange={(e) => setGlobalConfig({...globalConfig, artisticImageRules: e.target.value})}
+                        placeholder={PLACEHOLDERS.artisticImageRules}
+                        className="w-full h-24 bg-gray-900/50 border border-gray-800 rounded p-2 text-xs text-gray-300 focus:outline-none focus:border-blue-500 resize-none"
                      />
                  </div>
              </div>
@@ -489,6 +591,7 @@ export default function InputSection({ onGenerate, isLoading, existingResearchTo
                  <input 
                     value={globalConfig.chapterTitlePrompt}
                     onChange={(e) => setGlobalConfig({...globalConfig, chapterTitlePrompt: e.target.value})}
+                    placeholder={PLACEHOLDERS.chapterTitlePrompt}
                     className="w-full bg-gray-900/50 border border-gray-800 rounded px-3 py-2 text-xs text-gray-300 focus:outline-none focus:border-gray-600"
                  />
              </div>
@@ -497,9 +600,21 @@ export default function InputSection({ onGenerate, isLoading, existingResearchTo
                  <input 
                     value={globalConfig.bookStructure}
                     onChange={(e) => setGlobalConfig({...globalConfig, bookStructure: e.target.value})}
-                    placeholder="(Optional) Funnel Logic"
+                    placeholder={PLACEHOLDERS.bookStructure}
                     className="w-full bg-gray-900/50 border border-gray-800 rounded px-3 py-2 text-xs text-gray-500 focus:outline-none focus:border-gray-600"
                  />
+             </div>
+         </div>
+         
+         {/* --- SCALES --- */}
+         <div className="grid grid-cols-2 gap-6 pt-2 pb-4">
+             <div>
+                <label className="text-[10px] text-gray-500 uppercase font-bold block mb-1">Technical Level ({globalConfig.technicalLevel})</label>
+                <Throttle value={globalConfig.technicalLevel} onChange={(v:number) => setGlobalConfig({...globalConfig, technicalLevel: v})} leftLabel="Narrative" rightLabel="Academic" />
+             </div>
+             <div>
+                <label className="text-[10px] text-gray-500 uppercase font-bold block mb-1">Humor Balance ({globalConfig.humorBalance})</label>
+                <Throttle value={globalConfig.humorBalance} onChange={(v:number) => setGlobalConfig({...globalConfig, humorBalance: v})} leftLabel="Serious" rightLabel="Comedy" />
              </div>
          </div>
 
@@ -570,6 +685,7 @@ export default function InputSection({ onGenerate, isLoading, existingResearchTo
                  <textarea 
                     value={globalConfig.kdpRules}
                     onChange={(e) => setGlobalConfig({...globalConfig, kdpRules: e.target.value})}
+                    placeholder={PLACEHOLDERS.kdpRules}
                     className="w-full h-16 bg-red-900/10 border border-red-900/30 rounded p-2 text-xs text-gray-300 focus:outline-none focus:border-red-500 resize-none"
                  />
              </div>
@@ -578,7 +694,7 @@ export default function InputSection({ onGenerate, isLoading, existingResearchTo
                  <textarea 
                     value={globalConfig.systemicAdjustments}
                     onChange={(e) => setGlobalConfig({...globalConfig, systemicAdjustments: e.target.value})}
-                    placeholder="Overrides the base SYSTEM PROMPT..."
+                    placeholder={PLACEHOLDERS.systemicAdjustments}
                     className="w-full h-16 bg-gray-900 border border-gray-800 rounded p-2 text-xs text-gray-300 focus:outline-none focus:border-gray-500 resize-none"
                  />
              </div>
