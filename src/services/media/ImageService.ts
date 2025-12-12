@@ -1,7 +1,7 @@
 
 import { ProviderRegistry } from "../core/ProviderRegistry";
 import { getModel } from "../core/ModelRegistry";
-import { ImageModelID } from "../../types";
+import { ImageModelID, Book } from "../../types";
 
 export class ImageService {
 
@@ -64,5 +64,34 @@ export class ImageService {
         // Given the strict directive for Multi-LLM, we'll mark this as limited support.
 
         throw new Error("Image editing is temporarily disabled in Multi-LLM mode pending provider standardization.");
+    }
+
+    public static extractPrompts(book: Book): string {
+        let output = `# Visual Prompts for "${book.title}"\n\n`;
+
+        // Front Cover
+        if (book.frontCover) {
+            output += `## Front Cover\n`;
+            output += `**Prompt:** ${book.frontCover.visualDescription}\n\n`;
+        }
+
+        // Chapters
+        book.chapters.forEach(chapter => {
+            if (chapter.visuals && chapter.visuals.length > 0) {
+                output += `## Chapter ${chapter.number}: ${chapter.title}\n`;
+                chapter.visuals.forEach((visual, idx) => {
+                    output += `**[${visual.type} ${idx + 1}]:** ${visual.description}\n`;
+                });
+                output += `\n`;
+            }
+        });
+
+        // Back Cover
+        if (book.backCover) {
+            output += `## Back Cover\n`;
+            output += `**Prompt:** ${book.backCover.visualDescription}\n\n`;
+        }
+
+        return output;
     }
 }

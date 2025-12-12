@@ -38,14 +38,16 @@ export class GeminiProvider extends LLMProvider {
         try {
             const result = await this.client.models.generateContent(params);
 
-            // Extract text based on SDK response structure
-            if (result.response?.candidates && result.response.candidates.length > 0) {
-                const candidate = result.response.candidates[0];
+            // The SDK provides a convenience .text getter
+            // BUT TypeScript may complain, so we access candidates directly
+            if (result.candidates && result.candidates.length > 0) {
+                const candidate = result.candidates[0];
                 if (candidate.content?.parts && candidate.content.parts.length > 0) {
                     return candidate.content.parts[0].text || "";
                 }
             }
-            return "";
+            // Fallback: try the text property directly (some SDK versions)
+            return (result as any).text || "";
         } catch (error: any) {
             console.error("Gemini generation failed:", error);
             throw error;

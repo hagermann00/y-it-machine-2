@@ -134,6 +134,13 @@
   - Drag & drop or file picker for each visual slot
   - Time: 1 hour
 
+### Publishing & Compliance
+- [ ] **KDP Compliance Checks**
+  - Verify margins, bleed settings, and DPI
+  - Warn on low-res images (<300 DPI)
+  - Ensure even number of pages (insert blanks)
+  - Time: 2 hours
+
 ---
 
 ## ✅ COMPLETED

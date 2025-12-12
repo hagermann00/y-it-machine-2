@@ -1,92 +1,58 @@
 # Y-IT Machine 2 — Session Handoff
 
-**Last Updated:** December 11, 2024 @ 7:34 PM CST  
-**Previous Agent:** Antigravity (Claude)
+**Last Updated:** December 11, 2025 @ 11:15 PM CST
+**Previous Agent:** Antigravity (Google DeepMind)
 
 ---
 
-## Current State Summary
+## 🚀 Current State Summary
 
-### What Exists (THE_y-it_PRO)
+**Status:** ✅ Multi-LLM Integration Complete | Server Running (Port 5173)
 
-The user has already built significant infrastructure:
+### ✅ Completed Features (Session 12/11)
 
-| Component | File | Status |
-|-----------|------|--------|
-| Cost Estimator | `src/components/CostEstimator.tsx` | ✅ Complete |
-| Chapter-level Config | `src/components/InputSection.tsx` | ✅ Complete (972 lines) |
-| Preset System | `src/components/InputSection.tsx` | ✅ Complete |
-| Manuscript Parser | `src/utils/manuscriptParser.ts` | ✅ Complete |
-| Research Upload | `src/components/InputSection.tsx` | ✅ Complete |
-| Podcast Studio | `src/components/PodcastStudio.tsx` | ✅ Complete |
-| PDF Export | `src/utils/pdfExport.ts` | ✅ Complete |
-| Demo Mode | `src/services/demo/` | ✅ Complete |
+| Feature | Description | Status |
+|---------|-------------|--------|
+| **Multi-LLM Engine Room** | UI to select Research, Writing, Visual, & Podcast models | ✅ **LIVE** |
+| **Provider Layer** | `ProviderRegistry` with OpenAI, Anthropic, Google | ✅ **Verified** |
+| **Book Reader Pagination** | True word-count based pagination in `BookReader.tsx` | ✅ **Implemented** |
+| **Image Prompt Export** | Button to download prompts as Markdown | ✅ **Implemented** |
+| **Image Import** | "Studio" panel allows uploading custom images | ✅ **Implemented** |
+| **Cost Estimator refinement** | Supports multi-provider pricing models | ✅ **Done** |
+| **Demo Mode** | Zero-cost testing path | ✅ **Done** |
 
-### What's NOT Done Yet
-
-| Feature | Priority | Notes |
-|---------|----------|-------|
-| Multi-LLM Provider Layer | HIGH | Add OpenAI + Anthropic providers |
-| Per-Feature Engine Selection | HIGH | UI to select engine per task |
-| Model Registry with Pricing | HIGH | All models + current pricing |
-| Marketing Copy Generation | MEDIUM | Ad copy, social, email sequences |
-| eBook Export (EPUB/MOBI) | MEDIUM | Multi-format digital export |
-| Interactive Page Generator | LOW | Promotional landing page |
+### 📁 Architecture Updates
+- **Services:** `AuthorAgent`, `ImageService`, `ResearchCoordinator` are now **Provider-Agnostic**.
+- **Specialized Agents:** Detective, Auditor, etc. shims created.
+- **Config:** `GenSettings` now includes `researchModel`, `writingModel`, `imageModel`, `podcastModel`.
 
 ---
 
-## Two-Track Development Plan
+## 🚧 Pending / In Progress
 
-### Track 1: Y-IT Machine 2 (Jules or Other Dev)
-- Location: This repo (`y-it-machine-2`)
-- Focus: Post-research features, multi-LLM UI, marketing production
-- Directive: `.agent/workflows/y-it-multi-llm-directive.md`
+### High Priority (P1)
+- [ ] **Marketing Copy Generation** (Ad layouts exist, logic needed)
+- [ ] **KDP Compliance Checks** (Margins/DPI warnings - Added to TODO)
 
-### Track 2: Kno-It (Separate Repo, With User)
-- Location: TBD (new repo)
-- Focus: Standalone multi-LLM research engine
-- Features: Multi-engine, deep redundant research, cross-validation
-- Architecture: `.agent/workflows/multi-engine-refactor.md` (foundation)
-- **User has a specific vision for multi-iterative flow — ASK THEM**
+### Medium Priority (P2)
+- [ ] **EPUB Export**
+- [ ] **Persistence** (Save/Resume via IndexedDB)
 
 ---
 
-## Key Decisions Made
+## 🔧 Technical Notes for Next Session
 
-1. **Research is being extracted** to a separate module called "Kno-It"
-2. **Y-IT will consume Kno-It** as a module OR use simple internal research
-3. **Jules (Google's AI dev agent)** may be used for Y-IT implementation
-4. **Gemini should NOT architect the multi-LLM system** — use Claude/GPT for neutral design
-5. **Cost estimation already exists** — extend it for multi-model pricing
-
----
-
-## Model Pricing Reference (December 2024/2025)
-
-See `.agent/workflows/y-it-multi-llm-directive.md` for full tables.
-
-Quick reference:
-- Claude Sonnet 4.5: $3.00 in / $15.00 out per 1M tokens
-- GPT-4o: $2.50 in / $10.00 out per 1M tokens
-- Gemini 2.5 Flash: $0.10 in / $0.40 out per 1M tokens
+1.  **Server:** The App is running on `http://localhost:5173`.
+2.  **Environment:** Ensure `.env` has keys for `VITE_OPENAI_API_KEY`, `VITE_ANTHROPIC_API_KEY`, `VITE_GOOGLE_API_KEY` (or `VITE_API_KEY` for legacy).
+3.  **Known Minor Issue:** `PodcastService` currently hardcodes 'google' provider for script generation. Needs wiring to `settings.podcastModel` if diverse podcast models are required.
+4.  **CLI:** `npm run dev` is robust.
 
 ---
 
-## To Continue This Work
+## 💡 User Directives
 
-1. **Read the directive:** `view_file .agent/workflows/y-it-multi-llm-directive.md`
-2. **Check current components:** `src/components/` and `src/services/`
-3. **Ask the user** about their Kno-It vision — they have a specific multi-iterative flow in mind
-4. **For Jules tasks:** User wants task prompts formatted for Jules input
-
----
-
-## User Context
-
-- Building a product family: Books, eBooks, Podcasts, Marketing
-- Has another dev resource (possibly Jules or Devin)
-- Values robustness and modularity
-- Actively working on improvements — check git log for latest
+- **Separate "Kno-It":** Research engine logic is modular but currently resides in `y-it-machine-2`. User intends to split this.
+- **Pagination:** User explicitly requested "Multiple pages per chapter" -> `BookReader.tsx` splits text by ~300 words.
 
 ---
 
