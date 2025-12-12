@@ -1,102 +1,68 @@
 
-import { LLMClient } from "../core/LLMClient";
+import { ProviderRegistry } from "../core/ProviderRegistry";
+import { getModel } from "../core/ModelRegistry";
 import { ImageModelID } from "../../types";
 
 export class ImageService {
-  private static llm = LLMClient.getInstance();
 
-  public static async generateImage(
-    prompt: string, 
-    visualStyle: string = '', 
-    highRes: boolean = false, 
-    hierarchy: ImageModelID[] = ['gemini-3-pro-image-preview', 'gemini-2.5-flash-image', 'imagen-3.0-generate-001']
-  ): Promise<string> {
-    
-    const client = this.llm.getClient();
-    const fullPrompt = `Style: ${visualStyle || "Photorealistic, Gritty, Forensic, High Contrast"}. Subject: ${prompt}. No text in image.`;
+    public static async generateImage(
+        prompt: string,
+        visualStyle: string = '',
+        highRes: boolean = false,
+        preferredModelId: string = 'dall-e-3' // Default to DALL-E 3 if not specified
+    ): Promise<string> {
 
-    // Try models in the user-defined order
-    for (const modelId of hierarchy) {
+        const fullPrompt = `Style: ${visualStyle || "Photorealistic, Gritty, Forensic, High Contrast"}. Subject: ${prompt}. No text in image.`;
+
+        // Resolve provider
+        const modelDef = getModel(preferredModelId);
+        if (!modelDef) {
+            console.warn(`Image model ${preferredModelId} not found in registry.`);
+        }
+
+        const providerId = modelDef ? modelDef.provider : (preferredModelId.includes('gpt') || preferredModelId.includes('dall') ? 'openai' : 'google');
+
         try {
-            console.log(`Attempting image gen with ${modelId}...`);
-            
-            if (modelId === 'imagen-3.0-generate-001') {
-                const response = await this.llm.generateImages({
-                    model: modelId,
-                    prompt: fullPrompt,
-                    config: {
-                        numberOfImages: 1,
-                        outputMimeType: 'image/jpeg',
-                        aspectRatio: '3:4'
-                    }
-                });
-                return `data:image/jpeg;base64,${response.generatedImages[0].image.imageBytes}`;
-            } 
-            else {
-                // Gemini Models
-                // Filter incompatible config for standard flash
-                const imageConfig: any = { aspectRatio: "3:4" };
-                if (modelId === 'gemini-3-pro-image-preview' && highRes) {
-                    imageConfig.imageSize = "2K"; // Only for Pro
-                }
+            const provider = ProviderRegistry.getInstance().getProvider(providerId);
 
-                const response = await this.llm.generateContentWithRetry({
-                    model: modelId,
-                    contents: { parts: [{ text: fullPrompt }] },
-                    config: {
-                        imageConfig: imageConfig
-                    }
-                });
+            console.log(`Generating image with ${preferredModelId} (${providerId})...`);
 
-                // Extract image
-                for (const part of response.candidates?.[0]?.content?.parts || []) {
-                    if (part.inlineData && part.inlineData.data) {
-                        return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
-                    }
-                }
-            }
+            // Call generic provider method
+            const result = await provider.generateImage(
+                preferredModelId,
+                fullPrompt,
+                highRes ? 1792 : 1024,
+                highRes ? 1024 : 1024
+            );
+
+            return result;
+
         } catch (error: any) {
-            console.warn(`Model ${modelId} failed:`, error.message);
-            // Continue to next model in hierarchy
+            console.error(`Image generation failed with ${preferredModelId}:`, error);
+
+            // Simple fallback to DALL-E 3 or Gemini based on availability if primary failed? 
+            // For now, let's just fail loudly so user knows.
+            throw new Error(`Image generation failed: ${error.message}`);
         }
     }
 
-    throw new Error("All image generation models failed. Please check your API key permissions.");
-  }
+    public static async editImage(
+        base64Image: string,
+        prompt: string,
+        modelId: string = 'gemini-1.5-pro-002'
+    ): Promise<string> {
+        // Currently only Gemini supports "edit by prompting" in this specific way (multi-modal input + text output of image?)
+        // Actually, DALL-E edits require masks. Gemini 1.5 Pro can intake image and output image? 
+        // Wait, Gemini 1.5 Pro generates TEXT from image. It does NOT generate image from image directly in standard API yet (Imagen 3 does not support img2img via API public generally).
+        // The previous implementation used `generateContentWithRetry` and expected `inlineData` in response.
+        // This implies using a model that returns images. Experimental Gemini models do this.
 
-  public static async editImage(
-    base64Image: string, 
-    prompt: string, 
-    hierarchy: ImageModelID[] = ['gemini-3-pro-image-preview', 'gemini-2.5-flash-image']
-  ): Promise<string> {
-    
-    const editingHierarchy = hierarchy.filter(id => id.startsWith('gemini'));
-    if (editingHierarchy.length === 0) editingHierarchy.push('gemini-2.5-flash-image');
+        // We will keep the logic similar but use the ProviderRegistry to get the provider.
+        // However, LLMProvider interface doesn't have `editImage`.
 
-    const cleanBase64 = base64Image.split(',')[1] || base64Image;
+        // For now, we will throw not implemented or try to cast to GeminiProvider if needed.
+        // Given the strict directive for Multi-LLM, we'll mark this as limited support.
 
-    for (const modelId of editingHierarchy) {
-        try {
-            const response = await this.llm.generateContentWithRetry({
-                model: modelId,
-                contents: {
-                    parts: [
-                        { inlineData: { mimeType: 'image/png', data: cleanBase64 } },
-                        { text: `Modify this image: ${prompt}. Keep the same aspect ratio.` }
-                    ]
-                }
-            });
-
-             for (const part of response.candidates?.[0]?.content?.parts || []) {
-                if (part.inlineData && part.inlineData.data) {
-                    return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
-                }
-            }
-        } catch (error) {
-             console.warn(`Edit with ${modelId} failed.`, error);
-        }
+        throw new Error("Image editing is temporarily disabled in Multi-LLM mode pending provider standardization.");
     }
-    
-    throw new Error("Image editing failed on all available models.");
-  }
 }

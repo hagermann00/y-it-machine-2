@@ -142,7 +142,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
           dispatch({ type: 'UPDATE_LOADING_MSG', payload: "🧩 PARSING RAW INTEL..." });
           dispatch({ type: 'UPDATE_AGENTS', payload: [{ name: "Normalizer", status: 'RUNNING' }] });
 
-          researchData = await coordinator.normalizeLog(overrideResearch);
+          researchData = await coordinator.normalizeLog(overrideResearch, settings.researchModel);
 
           dispatch({ type: 'UPDATE_AGENTS', payload: [{ name: "Normalizer", status: 'COMPLETED' }] });
         } else {
@@ -202,7 +202,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
 
         if (!cachedData) {
           // CACHE MISS - FULL SWARM
-          researchData = await coordinator.execute(topic, (agentStates) => {
+          researchData = await coordinator.execute(topic, settings, (agentStates) => {
             dispatch({ type: 'UPDATE_AGENTS', payload: agentStates });
           });
 

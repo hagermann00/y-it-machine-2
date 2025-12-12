@@ -81,6 +81,12 @@ export interface GenSettings {
   customSpec?: string;
   imageModelHierarchy?: ImageModelID[];
   textOnlyMode?: boolean; // Skip image generation for faster/cheaper preview
+
+  // Multi-LLM Config
+  researchModel?: string;
+  writingModel?: string;
+  imageModel?: string;
+  podcastModel?: string;
 }
 
 // --- Podcast Types ---

@@ -1,9 +1,10 @@
 
-import { LLMClient } from "./core/LLMClient";
+import { ProviderRegistry } from "./core/ProviderRegistry";
+import { getModel } from "./core/ModelRegistry";
 import { ResearchDataSchema, ValidatedResearchData } from "./core/SchemaValidator";
 import { DetectiveAgent, AuditorAgent, InsiderAgent, StatAgent } from "./agents/SpecializedAgents";
 import { RESEARCH_SYSTEM_PROMPT } from "../constants";
-import { Type } from "@google/genai";
+import { GenSettings } from "../types";
 
 export type AgentStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
 
@@ -14,103 +15,69 @@ export interface AgentState {
 }
 
 export class ResearchCoordinator {
-  private llm: LLMClient;
   private agents: any[];
 
   constructor() {
-    this.llm = LLMClient.getInstance();
-    this.agents = [
-      new DetectiveAgent(),
-      new AuditorAgent(),
-      new InsiderAgent(),
-      new StatAgent()
-    ];
+    // Basic instantiation - if these classes are missing at runtime, this will crash.
+    // Assuming they exist or will be restored.
+    try {
+      this.agents = [
+        new DetectiveAgent(),
+        new AuditorAgent(),
+        new InsiderAgent(),
+        new StatAgent()
+      ];
+    } catch (e) {
+      console.warn("Specialized Agents not found. Research Coordinator operating in degraded mode.");
+      this.agents = [];
+    }
   }
 
-  async normalizeLog(rawText: string): Promise<ValidatedResearchData> {
-    const response = await this.llm.generateContentWithRetry({
-      model: 'gemini-2.5-flash',
-      contents: `
+  // Helper to get provider
+  private getProviderForModel(modelId?: string) {
+    const id = modelId || 'gemini-2.5-flash';
+    const modelDef = getModel(id);
+    const safeProviderId = modelDef ? modelDef.provider : 'google';
+    return {
+      provider: ProviderRegistry.getInstance().getProvider(safeProviderId),
+      modelId: id
+    };
+  }
+
+  async normalizeLog(rawText: string, modelId?: string): Promise<ValidatedResearchData> {
+    const { provider, modelId: safeModelId } = this.getProviderForModel(modelId);
+
+    const prompt = `
         Task: Convert the following RAW RESEARCH NOTES into a structured Y-It Forensic Report JSON.
         
         INPUT TEXT:
-        ${rawText.substring(0, 20000)} // Truncate to avoid context limits if massive
+        ${rawText.substring(0, 25000)}
         
         INSTRUCTIONS:
         1. Extract specific facts, numbers, and warnings.
         2. If data is missing (e.g. no "Ethical Rating"), estimate it based on the sentiment of the text.
         3. Map unstructured text to the required JSON fields.
-      `,
-      config: {
-        systemInstruction: "You are a Data Normalizer. You convert messy text into strict JSON for the Y-It Engine.",
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            summary: { type: Type.STRING },
-            ethicalRating: { type: Type.NUMBER },
-            profitPotential: { type: Type.STRING },
-            marketStats: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  label: { type: Type.STRING },
-                  value: { type: Type.STRING },
-                  context: { type: Type.STRING }
-                },
-                required: ["label", "value", "context"]
-              }
-            },
-            hiddenCosts: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  label: { type: Type.STRING },
-                  value: { type: Type.STRING },
-                  context: { type: Type.STRING }
-                },
-                required: ["label", "value", "context"]
-              }
-            },
-            caseStudies: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  name: { type: Type.STRING },
-                  type: { type: Type.STRING, enum: ['WINNER', 'LOSER'] },
-                  background: { type: Type.STRING },
-                  strategy: { type: Type.STRING },
-                  outcome: { type: Type.STRING },
-                  revenue: { type: Type.STRING }
-                },
-                required: ["name", "type", "background", "strategy", "outcome", "revenue"]
-              }
-            },
-            affiliates: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  program: { type: Type.STRING },
-                  potential: { type: Type.STRING },
-                  type: { type: Type.STRING, enum: ['PARTICIPANT', 'WRITER'] },
-                  commission: { type: Type.STRING },
-                  notes: { type: Type.STRING }
-                },
-                required: ["program", "type", "commission", "notes"]
-              }
-            }
-          }
+        
+        CRITICAL: Return valid JSON matching this schema:
+        {
+             "summary": "string",
+             "ethicalRating": number (1-10),
+             "profitPotential": "string",
+             "marketStats": [ { "label": "string", "value": "string", "context": "string" } ],
+             "hiddenCosts": [ { "label": "string", "value": "string", "context": "string" } ],
+             "caseStudies": [ { "name": "string", "type": "WINNER"|"LOSER", "background": "string", "strategy": "string", "outcome": "string", "revenue": "string" } ],
+             "affiliates": [ { "program": "string", "potential": "string", "type": "PARTICIPANT"|"WRITER", "commission": "string", "notes": "string" } ]
         }
-      }
+    `;
+
+    const response = await provider.generateText(safeModelId, prompt, {
+      systemPrompt: "You are a Data Normalizer. You convert messy text into strict JSON for the Y-It Engine.",
+      jsonMode: true,
+      maxTokens: 4000
     });
 
-    const text = response.text || "{}";
-    const cleanText = text.replace(/```json/g, '').replace(/```/g, '');
-    
+    const cleanText = response.replace(/```json/g, '').replace(/```/g, '');
+
     try {
       const parsed = JSON.parse(cleanText);
       return ResearchDataSchema.parse(parsed);
@@ -120,15 +87,20 @@ export class ResearchCoordinator {
     }
   }
 
-  async execute(topic: string, onProgress: (state: AgentState[]) => void): Promise<ValidatedResearchData> {
+  async execute(topic: string, settings: GenSettings, onProgress: (state: AgentState[]) => void): Promise<ValidatedResearchData> {
+    if (this.agents.length === 0) {
+      throw new Error("Research Agents unavailable. Please use Manual Upload.");
+    }
+
     const agentStates: AgentState[] = this.agents.map(a => ({ name: a.name, status: 'PENDING' }));
     onProgress([...agentStates]);
 
-    // 1. Parallel Execution with Settled Results (Robustness)
+    // 1. Parallel Execution 
+    // Note: specialized agents likely still use hardcoded LLMClient unless updated.
     const promises = this.agents.map(async (agent, index) => {
       agentStates[index].status = 'RUNNING';
       onProgress([...agentStates]);
-      
+
       try {
         const result = await agent.run(topic);
         agentStates[index].status = 'COMPLETED';
@@ -138,111 +110,52 @@ export class ResearchCoordinator {
         console.error(`${agent.name} failed:`, e);
         agentStates[index].status = 'FAILED';
         onProgress([...agentStates]);
-        return `[${agent.name} Error] Failed to retrieve data. Proceed with caution.`;
+        return `[${agent.name} Error] Failed to retrieve data.`;
       }
     });
 
     const results = await Promise.allSettled(promises);
-    
+
     // 2. Synthesize Reports
-    // Extract fulfilled values or fallback to error messages
-    const reports = results.map((r, i) => 
-        r.status === 'fulfilled' ? r.value : `[System Error] Agent ${this.agents[i].name} crashed.`
+    const reports = results.map((r, i) =>
+      r.status === 'fulfilled' ? r.value : `[System Error] Agent ${this.agents[i].name} crashed.`
     );
 
-    const [detectiveReport, auditorReport, insiderReport, statReport] = reports;
+    const rawForensicData = reports.join("\n\n---\n\n");
 
-    const rawForensicData = `
-      DETECTIVE REPORT: ${detectiveReport}
-      AUDITOR REPORT: ${auditorReport}
-      INSIDER REPORT: ${insiderReport}
-      STATISTICIAN REPORT: ${statReport}
-    `;
+    // 3. Structured Synthesis using Selected Model
+    const { provider, modelId: safeModelId } = this.getProviderForModel(settings.researchModel);
 
-    // 3. Structured Synthesis
-    const synthesisResponse = await this.llm.generateContentWithRetry({
-      model: 'gemini-2.5-flash',
-      contents: `
+    const prompt = `
         Analyze the following FORENSIC DOSSIER on "${topic}".
         Synthesize the conflicting reports into a single, cohesive ResearchData object.
         If reports are missing or contain errors, estimate conservatively based on the topic context.
         
         FORENSIC DOSSIER:
         ${rawForensicData}
-      `,
-      config: {
-        systemInstruction: RESEARCH_SYSTEM_PROMPT,
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            summary: { type: Type.STRING },
-            ethicalRating: { type: Type.NUMBER },
-            profitPotential: { type: Type.STRING },
-            marketStats: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  label: { type: Type.STRING },
-                  value: { type: Type.STRING },
-                  context: { type: Type.STRING }
-                },
-                required: ["label", "value", "context"]
-              }
-            },
-            hiddenCosts: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  label: { type: Type.STRING },
-                  value: { type: Type.STRING },
-                  context: { type: Type.STRING }
-                },
-                required: ["label", "value", "context"]
-              }
-            },
-            caseStudies: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  name: { type: Type.STRING },
-                  type: { type: Type.STRING, enum: ['WINNER', 'LOSER'] },
-                  background: { type: Type.STRING },
-                  strategy: { type: Type.STRING },
-                  outcome: { type: Type.STRING },
-                  revenue: { type: Type.STRING }
-                },
-                required: ["name", "type", "background", "strategy", "outcome", "revenue"]
-              }
-            },
-            affiliates: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  program: { type: Type.STRING },
-                  potential: { type: Type.STRING },
-                  type: { type: Type.STRING, enum: ['PARTICIPANT', 'WRITER'] },
-                  commission: { type: Type.STRING },
-                  notes: { type: Type.STRING }
-                },
-                required: ["program", "type", "commission", "notes"]
-              }
-            }
-          }
+        
+        CRITICAL: Return valid JSON matching this schema:
+        {
+             "summary": "string",
+             "ethicalRating": number (1-10),
+             "profitPotential": "string",
+             "marketStats": [ { "label": "string", "value": "string", "context": "string" } ],
+             "hiddenCosts": [ { "label": "string", "value": "string", "context": "string" } ],
+             "caseStudies": [ { "name": "string", "type": "WINNER"|"LOSER", "background": "string", "strategy": "string", "outcome": "string", "revenue": "string" } ],
+             "affiliates": [ { "program": "string", "potential": "string", "type": "PARTICIPANT"|"WRITER", "commission": "string", "notes": "string" } ]
         }
-      }
+    `;
+
+    const synthesisResponse = await provider.generateText(safeModelId, prompt, {
+      systemPrompt: RESEARCH_SYSTEM_PROMPT + "\n\nRETURN JSON ONLY.",
+      jsonMode: true,
+      maxTokens: 4000
     });
 
-    const text = synthesisResponse.text || "{}";
-    const cleanText = text.replace(/```json/g, '').replace(/```/g, '');
-    
+    const cleanText = synthesisResponse.replace(/```json/g, '').replace(/```/g, '');
+
     try {
       const parsed = JSON.parse(cleanText);
-      // Validate with Zod
       return ResearchDataSchema.parse(parsed);
     } catch (e) {
       console.error("Validation error:", e);

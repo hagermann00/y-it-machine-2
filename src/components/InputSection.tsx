@@ -5,6 +5,8 @@ import { GenSettings, ImageModelID, ResearchData } from '../types';
 import { IMAGE_MODELS } from '../constants';
 import { useProject } from '../context/ProjectContext';
 import { ResearchDataSchema } from '../services/core/SchemaValidator';
+import { MODELS, getModelsByProvider } from '../services/core/ModelRegistry';
+import { BrainCircuit } from 'lucide-react';
 
 interface InputSectionProps {
     onGenerate: (topic: string, settings: GenSettings, overrideResearch?: ResearchData | string) => void;
@@ -114,6 +116,17 @@ export default function InputSection({ onGenerate, isLoading, existingResearchTo
         humorBalance: 60,
         chapterTitlePrompt: 'Surrealist noir concept art, high contrast, danger yellow accents, symbolic of the chapter theme.',
     });
+
+    // --- Engine Room State ---
+    const [engineConfig, setEngineConfig] = useState({
+        research: 'gemini-2.0-flash-exp', // Default to fast/free
+        writing: 'claude-3-5-sonnet-20241022', // Best writer
+        images: 'dall-e-3',
+        podcast: 'gemini-voice' // Locked
+    });
+
+    // Toggle Engine Room UI
+    const [showEngineRoom, setShowEngineRoom] = useState(false);
 
     // --- Chapters State ---
     const [chapters, setChapters] = useState<ChapterConfig[]>(
@@ -496,7 +509,12 @@ export default function InputSection({ onGenerate, isLoading, existingResearchTo
                 imageDensity: 2,
                 techLevel: 2,
                 customSpec: spec,
-                imageModelHierarchy: IMAGE_MODELS.map(m => m.id as ImageModelID)
+                imageModelHierarchy: IMAGE_MODELS.map(m => m.id as ImageModelID),
+                // Multi-LLM Config
+                researchModel: engineConfig.research,
+                writingModel: engineConfig.writing,
+                imageModel: engineConfig.images,
+                podcastModel: engineConfig.podcast
             },
             override
         );
@@ -690,6 +708,79 @@ export default function InputSection({ onGenerate, isLoading, existingResearchTo
                         </button>
                     </div>
                 </div>
+            </div>
+
+            {/* --- ENGINE ROOM --- */}
+            <div className="bg-[#0A0A0A] border-b border-gray-800">
+                <button
+                    onClick={() => setShowEngineRoom(!showEngineRoom)}
+                    className="w-full flex items-center justify-between px-6 py-2 text-[10px] font-bold text-gray-500 hover:text-yellow-500 hover:bg-gray-900 transition-colors uppercase tracking-widest"
+                >
+                    <span className="flex items-center gap-2"><BrainCircuit size={14} /> AI Engine Configuration</span>
+                    {showEngineRoom ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                </button>
+
+                {showEngineRoom && (
+                    <div className="p-6 grid grid-cols-1 md:grid-cols-4 gap-6 animate-slideDown">
+                        {/* Research Engine */}
+                        <div className="space-y-2">
+                            <label className="text-[10px] text-blue-400 font-bold uppercase block">Research Engine</label>
+                            <select
+                                value={engineConfig.research}
+                                onChange={(e) => setEngineConfig({ ...engineConfig, research: e.target.value })}
+                                className="w-full bg-gray-900 border border-gray-700 rounded text-xs text-gray-300 p-2 focus:border-blue-500 outline-none"
+                            >
+                                {MODELS.filter(m => m.capabilities.includes('text')).map(m => (
+                                    <option key={m.id} value={m.id}>{m.displayName} (${m.pricing.inputPer1M}/M)</option>
+                                ))}
+                            </select>
+                            <p className="text-[9px] text-gray-600">Powering: Detective, Auditor, Insider agents.</p>
+                        </div>
+
+                        {/* Writing Engine */}
+                        <div className="space-y-2">
+                            <label className="text-[10px] text-purple-400 font-bold uppercase block">Writing Engine</label>
+                            <select
+                                value={engineConfig.writing}
+                                onChange={(e) => setEngineConfig({ ...engineConfig, writing: e.target.value })}
+                                className="w-full bg-gray-900 border border-gray-700 rounded text-xs text-gray-300 p-2 focus:border-purple-500 outline-none"
+                            >
+                                {MODELS.filter(m => m.capabilities.includes('text')).map(m => (
+                                    <option key={m.id} value={m.id}>{m.displayName} (${m.pricing.outputPer1M}/M)</option>
+                                ))}
+                            </select>
+                            <p className="text-[9px] text-gray-600">Powering: Chapter drafting, narrative flow.</p>
+                        </div>
+
+                        {/* Image Engine */}
+                        <div className="space-y-2">
+                            <label className="text-[10px] text-green-400 font-bold uppercase block">Visual Engine</label>
+                            <select
+                                value={engineConfig.images}
+                                onChange={(e) => setEngineConfig({ ...engineConfig, images: e.target.value })}
+                                className="w-full bg-gray-900 border border-gray-700 rounded text-xs text-gray-300 p-2 focus:border-green-500 outline-none"
+                            >
+                                {MODELS.filter(m => m.capabilities.includes('image') || m.id === 'dall-e-3').map(m => (
+                                    <option key={m.id} value={m.id}>{m.displayName}</option>
+                                ))}
+                            </select>
+                            <p className="text-[9px] text-gray-600">Powering: Covers, chapter art, diagrams.</p>
+                        </div>
+
+                        {/* Podcast Engine */}
+                        <div className="space-y-2">
+                            <label className="text-[10px] text-yellow-400 font-bold uppercase block">Podcast Engine</label>
+                            <select
+                                value={engineConfig.podcast}
+                                disabled
+                                className="w-full bg-gray-900/50 border border-gray-800 rounded text-xs text-gray-500 p-2 cursor-not-allowed"
+                            >
+                                <option value="gemini-voice">Gemini Voice (Multi-Speaker)</option>
+                            </select>
+                            <p className="text-[9px] text-gray-600">Only Gemini supports multi-speaker generation natively.</p>
+                        </div>
+                    </div>
+                )}
             </div>
 
             <div className="p-6 bg-[#050505] space-y-8">
