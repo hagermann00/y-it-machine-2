@@ -1,0 +1,324 @@
+
+
+import { jsPDF } from "jspdf";
+import { Book, ExportSettings, TrimSize } from "../types";
+
+const PAGE_SIZES: Record<TrimSize, { width: number; height: number }> = {
+  '5x8': { width: 5, height: 8 },
+  '6x9': { width: 6, height: 9 },
+  '7x10': { width: 7, height: 10 }
+};
+
+/**
+ * Safely adds an image to the PDF with error recovery.
+ * If image fails, draws a placeholder rectangle with optional label.
+ */
+const safeAddImage = (
+  doc: jsPDF,
+  imageUrl: string | undefined,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  label?: string
+): boolean => {
+  if (!imageUrl) {
+    drawImagePlaceholder(doc, x, y, width, height, label || "No Image");
+    return false;
+  }
+
+  try {
+    // Validate base64 format
+    if (imageUrl.startsWith('data:')) {
+      const formatMatch = imageUrl.match(/^data:image\/(\w+);base64,/);
+      if (!formatMatch) {
+        throw new Error("Invalid base64 image format");
+      }
+      doc.addImage(imageUrl, formatMatch[1].toUpperCase(), x, y, width, height);
+    } else {
+      // Assume PNG for URLs
+      doc.addImage(imageUrl, "PNG", x, y, width, height);
+    }
+    return true;
+  } catch (e: any) {
+    console.warn("Image rendering failed:", e.message, label);
+    drawImagePlaceholder(doc, x, y, width, height, label || "Image Error");
+    return false;
+  }
+};
+
+/**
+ * Draws a placeholder rectangle when an image cannot be loaded
+ */
+const drawImagePlaceholder = (
+  doc: jsPDF,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  label: string
+): void => {
+  // Draw gray rectangle
+  doc.setFillColor(240, 240, 240);
+  doc.setDrawColor(200, 200, 200);
+  doc.rect(x, y, width, height, 'FD');
+
+  // Add label text
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.setTextColor(150, 150, 150);
+  doc.text(`[${label}]`, x + width / 2, y + height / 2, { align: "center" });
+
+  // Reset text color
+  doc.setTextColor(0);
+};
+
+export const downloadPdf = (book: Book, settings: ExportSettings) => {
+  const baseSize = PAGE_SIZES[settings.trimSize];
+
+  // Calculate final dimensions with bleed if enabled
+  // Real KDP: Width + 0.125 (outer), Height + 0.25 (top/bottom)
+  const bleedW = settings.includeBleed ? 0.125 : 0;
+  const bleedH = settings.includeBleed ? 0.25 : 0;
+
+  const finalWidth = baseSize.width + bleedW;
+  const finalHeight = baseSize.height + bleedH;
+
+  const doc = new jsPDF({
+    orientation: "portrait",
+    unit: "in",
+    format: [finalWidth, finalHeight]
+  });
+
+  // KDP Margin Logic (Mirrored Margins for Gutter)
+  const outerMargin = 0.5;
+  const gutterMargin = 0.75; // Inside margin needs to be larger for binding
+  const topMargin = 0.75;
+  const bottomMargin = 0.75;
+
+  const contentWidth = finalWidth - (outerMargin + gutterMargin);
+  const contentBottom = finalHeight - bottomMargin;
+  let y = topMargin;
+  const lineHeight = 0.22;
+
+  // Helper: Get X position based on current page side (Left/Right)
+  // Page 1 is always Right (Recto).
+  const getX = () => {
+    const pageNum = doc.getNumberOfPages();
+    const isOdd = pageNum % 2 !== 0; // Odd = Right Page
+    // On Right Page: Gutter is on Left.
+    // On Left Page: Gutter is on Right.
+    return isOdd ? gutterMargin : outerMargin;
+  };
+
+  // Helper: Ensure we start on a Right-Hand Page (Recto) for new chapters
+  const ensureRectoPage = () => {
+    const pageNum = doc.getNumberOfPages();
+    // If current page is Odd (Right), adding a page makes it Even (Left).
+    // We want the Chapter to start on Odd (Right).
+    // So if we are currently on an Odd page (e.g. pg 1), next is 2 (Left). We want 3.
+    // So we add 2 (Even, Blank) then 3 (Odd, Chapter).
+    if (pageNum % 2 !== 0) {
+      doc.addPage(); // Add blank even page
+      // Optional: Write "Notes" or leave blank
+    }
+    doc.addPage(); // Add the actual chapter start page (Odd)
+    y = topMargin;
+  };
+
+  const checkSpace = (heightNeeded: number) => {
+    if (y + heightNeeded > contentBottom) {
+      doc.addPage();
+      y = topMargin;
+    }
+  };
+
+  // --- Front Cover ---
+  // Cover technically isn't Page 1 of the interior block for KDP, usually separate file.
+  // But for this export we include it as the first visual.
+  if (book.frontCover?.imageUrl) {
+    safeAddImage(doc, book.frontCover.imageUrl, 0, 0, finalWidth, finalHeight, "Front Cover");
+    // This counts as a page in jsPDF flow, but typically cover is separate.
+    // We'll reset standard flow after this.
+  }
+
+  // --- Title Page (Page 1 - Right) ---
+  // Ensure we are on an odd page logic if cover took one? 
+  // Just force add page if cover exists, effectively making Title Page usually Page 3 if cover is pg 1, blank pg 2.
+  ensureRectoPage();
+
+  doc.setFont("times", "bold");
+  doc.setFontSize(24);
+  doc.setTextColor(0);
+  const titleLines = doc.splitTextToSize(book.title.toUpperCase(), contentWidth);
+  const titleHeight = doc.getTextDimensions(titleLines).h;
+  doc.text(titleLines, finalWidth / 2, finalHeight / 3, { align: "center" });
+
+  doc.setFont("times", "normal");
+  doc.setFontSize(14);
+  const subLines = doc.splitTextToSize(book.subtitle, contentWidth);
+  doc.text(subLines, finalWidth / 2, finalHeight / 3 + titleHeight + 0.5, { align: "center" });
+
+  doc.setFontSize(9);
+  doc.setTextColor(100);
+  doc.text("Generated by Y-It Engine v3.0", finalWidth / 2, finalHeight - bottomMargin, { align: "center" });
+
+  // --- TOC (Starts on new Recto) ---
+  ensureRectoPage();
+  doc.setFont("times", "bold");
+  doc.setFontSize(16);
+  doc.setTextColor(0);
+  doc.text("TABLE OF CONTENTS", getX(), topMargin + 0.5);
+
+  let tocY = topMargin + 1.2;
+  doc.setFont("times", "normal");
+  doc.setFontSize(11);
+
+  book.chapters.forEach((chapter) => {
+    doc.text(`Chapter ${chapter.number}: ${chapter.title}`, getX(), tocY);
+    tocY += 0.3;
+  });
+
+  // --- Chapters ---
+  book.chapters.forEach((chapter) => {
+    ensureRectoPage(); // STANDARD RULE: Chapters start on Right side (Odd)
+    y = topMargin + 1.5; // Drop chapter start lower
+
+    // Chapter Header
+    doc.setFont("times", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(`CHAPTER ${chapter.number}`, getX(), y);
+    y += 0.25;
+
+    doc.setFontSize(18);
+    doc.setTextColor(0);
+    const chTitleLines = doc.splitTextToSize(chapter.title.toUpperCase(), contentWidth);
+    doc.text(chTitleLines, getX(), y);
+    y += (chTitleLines.length * 0.3) + 0.5;
+
+    // Hero Image
+    const hero = chapter.visuals?.find(v => v.type === 'HERO');
+    if (hero) {
+      const imgHeight = finalHeight * 0.35;
+      checkSpace(imgHeight + 0.5);
+      safeAddImage(doc, hero.imageUrl, getX(), y, contentWidth, imgHeight, `Ch${chapter.number} Hero`);
+      y += imgHeight + 0.4;
+    }
+
+    // Body Text
+    doc.setFont("times", "normal");
+    doc.setFontSize(11);
+
+    const paragraphs = chapter.content.split('\n');
+
+    paragraphs.forEach(para => {
+      let text = para.trim();
+      if (!text) {
+        y += lineHeight;
+        return;
+      }
+
+      let isBold = false;
+      let fontSize = 11;
+
+      // Handle Markdown Headers
+      if (text.startsWith('##') || text.startsWith('###')) {
+        isBold = true;
+        text = text.replace(/^#+\s*/, '');
+        fontSize = 13;
+        y += 0.2; // Extra space before header
+      } else if (text.startsWith('#')) {
+        isBold = true;
+        text = text.replace(/^#+\s*/, '');
+        fontSize = 14;
+        y += 0.3;
+      }
+
+      // Handle bolding
+      if (text.match(/^\*\*.*\*\*$/)) {
+        isBold = true;
+        text = text.replace(/\*\*/g, '');
+      }
+
+      doc.setFont("times", isBold ? "bold" : "normal");
+      doc.setFontSize(fontSize);
+
+      const cleanText = text.replace(/[*_`]/g, '');
+      const lines = doc.splitTextToSize(cleanText, contentWidth);
+
+      // Orphan protection (Basic): Don't start paragraph if only 1 line fits
+      if (y + (lines.length * lineHeight) > contentBottom) {
+        // If massive paragraph, just split it. If header, force new page.
+        if (isBold) {
+          doc.addPage();
+          y = topMargin;
+        }
+      }
+
+      checkSpace(lines.length * lineHeight);
+      doc.text(lines, getX(), y);
+      y += (lines.length * lineHeight) + 0.08;
+    });
+
+    // Other Visuals
+    if (chapter.visuals) {
+      chapter.visuals.forEach(vis => {
+        if (vis.type !== 'HERO' && vis.imageUrl) {
+          const imgHeight = finalHeight * 0.3;
+          checkSpace(imgHeight + 0.4);
+          y += 0.2;
+          try {
+            doc.addImage(vis.imageUrl, "PNG", getX(), y, contentWidth, imgHeight);
+            y += imgHeight + 0.2;
+
+            if (vis.caption) {
+              doc.setFont("times", "italic");
+              doc.setFontSize(9);
+              const capLines = doc.splitTextToSize(vis.caption, contentWidth);
+              checkSpace(capLines.length * 0.15);
+              doc.text(capLines, getX(), y, { align: "center", maxWidth: contentWidth });
+              y += (capLines.length * 0.15) + 0.2;
+            }
+          } catch (e) { console.warn("Visual error", e); }
+        }
+      });
+    }
+  });
+
+  // --- Back Cover ---
+  if (book.backCover?.imageUrl) {
+    doc.addPage();
+    try {
+      doc.addImage(book.backCover.imageUrl, "PNG", 0, 0, finalWidth, finalHeight);
+    } catch (e) { console.warn("Back cover render error", e); }
+  }
+
+  // --- Pagination ---
+  const totalPages = doc.getNumberOfPages();
+  let contentPageNum = 1;
+
+  for (let i = 1; i <= totalPages; i++) {
+    // Typically skip Cover (1), maybe Title (2 or 3). 
+    // We will just paginate everything except the literal cover images if full page.
+    doc.setPage(i);
+
+    const isOdd = i % 2 !== 0;
+
+    // Don't paginate full bleed cover pages (heuristic)
+    // We can assume Page 1 is Front Cover if we added it first.
+    const isCover = (i === 1 && book.frontCover?.imageUrl) || (i === totalPages && book.backCover?.imageUrl);
+
+    if (!isCover) {
+      doc.setFont("times", "normal");
+      doc.setFontSize(10);
+      doc.setTextColor(50);
+
+      // Pagination centered
+      doc.text(`${i}`, finalWidth / 2, finalHeight - 0.4, { align: "center" });
+    }
+  }
+
+  const safeFilename = book.title.replace(/[^a-z0-9]/gi, '_').toLowerCase().substring(0, 50);
+  doc.save(`${safeFilename}_KDP_${settings.trimSize}.pdf`);
+};
