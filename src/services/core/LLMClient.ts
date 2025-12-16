@@ -6,12 +6,24 @@ export class LLMClient {
 
   private constructor() {
     // Support both Vite (import.meta.env) and standard (process.env)
-    const apiKey = (typeof import.meta !== 'undefined' && (import.meta as any).env && (import.meta as any).env.VITE_API_KEY) 
-      ? (import.meta as any).env.VITE_API_KEY 
-      : process.env.API_KEY;
+    // Priority: VITE_GEMINI_API_KEY (Vite) > GEMINI_API_KEY (Server/Node) > API_KEY (Fallback)
+
+    let apiKey = "";
+
+    try {
+        if (typeof import.meta !== 'undefined' && import.meta.env) {
+            apiKey = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.VITE_API_KEY || "";
+        }
+    } catch (e) {
+        // Ignore import.meta errors in non-module environments
+    }
+
+    if (!apiKey && typeof process !== 'undefined' && process.env) {
+        apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY || "";
+    }
 
     if (!apiKey) {
-      console.warn("API Key not found. Ensure VITE_API_KEY or API_KEY is set.");
+      console.warn("API Key not found. Ensure VITE_GEMINI_API_KEY is set in .env.");
     }
 
     this.client = new GoogleGenAI({ apiKey: apiKey || "" });
@@ -40,7 +52,7 @@ export class LLMClient {
       const message = error.message || "";
 
       const isPermissionError = status === 403 || message.includes("403") || message.includes("permission");
-      const isRateLimit = status === 429 || message.includes("429") || message.includes("resource exhausted");
+      const isRateLimit = status === 429 || message.includes("429") || message.includes("resource_exhausted") || message.includes("Too Many Requests");
       
       // Fatal errors: Permissions or Invalid Argument
       if (isPermissionError || status === 400) {
