@@ -1,10 +1,11 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Search, Settings, ChevronDown, ChevronUp, AlertCircle, GitBranch, Zap, Plus, Image as ImageIcon, Trash2, Upload, FileText, Activity, Smile, Bot, Copy, Clipboard, FileEdit, Calculator, BookOpen, Palette, Sliders, FileJson, Scale, ShieldAlert, ChevronLeft, ChevronRight, Database, RefreshCcw, FileUp, ToggleRight, ToggleLeft, Check, Save, Download } from 'lucide-react';
+import { Search, Settings, ChevronDown, ChevronUp, AlertCircle, GitBranch, Zap, Plus, Image as ImageIcon, Trash2, Upload, FileText, Activity, Smile, Bot, Copy, Clipboard, FileEdit, Calculator, BookOpen, Palette, Sliders, FileJson, Scale, ShieldAlert, ChevronLeft, ChevronRight, Database, RefreshCcw, FileUp, ToggleRight, ToggleLeft, Check, Save, Download, Book } from 'lucide-react';
 import { GenSettings, ImageModelID, ResearchData } from '../types';
 import { IMAGE_MODELS } from '../constants';
 import { useProject } from '../context/ProjectContext';
 import { ResearchDataSchema } from '../services/core/SchemaValidator';
+import { parseManuscript } from '../utils/manuscriptParser';
 
 interface InputSectionProps {
   onGenerate: (topic: string, settings: GenSettings, overrideResearch?: ResearchData | string) => void;
@@ -76,13 +77,15 @@ export default function InputSection({ onGenerate, isLoading, existingResearchTo
   const [showImport, setShowImport] = useState(false);
   const [importText, setImportText] = useState('');
   const [isCached, setIsCached] = useState(false);
-  const { clearCacheForTopic } = useProject();
+  const { clearCacheForTopic, importManuscript } = useProject();
   
   // --- Upload State ---
   const [uploadedResearch, setUploadedResearch] = useState<ResearchData | null>(null);
   const [rawResearchUpload, setRawResearchUpload] = useState<string | null>(null);
   const [bypassResearch, setBypassResearch] = useState(false);
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const manuscriptInputRef = useRef<HTMLInputElement>(null);
 
   // --- Presets State ---
   const [presets, setPresets] = useState<string[]>([]);
@@ -259,6 +262,24 @@ export default function InputSection({ onGenerate, isLoading, existingResearchTo
           }
       };
       reader.readAsText(file);
+  };
+
+  const handleManuscriptUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+        const content = event.target?.result as string;
+        try {
+            const book = parseManuscript(content);
+            if (confirm(`Load manuscript "${book.title}" with ${book.chapters.length} chapters? This will skip the generation process.`)) {
+                importManuscript(book);
+            }
+        } catch (e) {
+            alert("Failed to parse manuscript file.");
+        }
+    };
+    reader.readAsText(file);
   };
   
   const downloadJsonTemplate = () => {
@@ -675,8 +696,13 @@ export default function InputSection({ onGenerate, isLoading, existingResearchTo
                  </h3>
                  <div className="flex gap-2">
                      <input type="file" accept=".json,.txt,.md" className="hidden" ref={fileInputRef} onChange={handleResearchUpload} />
+                     <input type="file" accept=".json,.txt,.md" className="hidden" ref={manuscriptInputRef} onChange={handleManuscriptUpload} />
+                     
                      <button onClick={downloadJsonTemplate} className="text-[10px] bg-gray-900 border border-gray-700 px-2 py-1 rounded text-gray-400 hover:text-white flex items-center gap-1" title="Download Template"><Download size={10}/></button>
+                     
                      <button onClick={() => fileInputRef.current?.click()} className="text-[10px] bg-blue-900/30 border border-blue-800 px-2 py-1 rounded text-blue-400 hover:text-blue-300 flex items-center gap-1"><FileUp size={10}/> Upload Intel</button>
+                     <button onClick={() => manuscriptInputRef.current?.click()} className="text-[10px] bg-purple-900/30 border border-purple-800 px-2 py-1 rounded text-purple-400 hover:text-purple-300 flex items-center gap-1"><Book size={10}/> Upload Manuscript</button>
+                     
                      <div className="w-px h-4 bg-gray-800 mx-1"></div>
                      <button onClick={() => handleCopyTemplate(true)} className="text-[10px] bg-gray-900 border border-gray-700 px-2 py-1 rounded text-gray-400 hover:text-white flex items-center gap-1"><Copy size={10}/> Template</button>
                      <button onClick={handlePasteTemplate} className="text-[10px] bg-gray-900 border border-gray-700 px-2 py-1 rounded text-gray-400 hover:text-white flex items-center gap-1"><Clipboard size={10}/> Paste</button>

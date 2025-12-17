@@ -110,13 +110,14 @@ const reducer = (state: State, action: Action): State => {
 
 const ProjectContext = createContext<{
   state: State;
-  startInvestigation: (topic: string, settings: GenSettings) => Promise<void>;
+  startInvestigation: (topic: string, settings: GenSettings, overrideResearch?: ResearchData | string) => Promise<void>;
   createBranch: (settings: GenSettings) => Promise<void>;
   resetProject: () => void;
   setActiveBranch: (id: string) => void;
   updateActiveBook: (book: Book) => void;
   generatePodcast: (settings: PodcastSettings) => Promise<void>;
   updatePodcastEpisode: (episode: PodcastEpisode) => void;
+  clearCacheForTopic: (topic: string) => void;
 } | undefined>(undefined);
 
 export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -124,15 +125,65 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
   const coordinator = new ResearchCoordinator();
   const author = new AuthorAgent();
 
-  const startInvestigation = async (topic: string, settings: GenSettings) => {
+  const startInvestigation = async (topic: string, settings: GenSettings, overrideResearch?: ResearchData | string) => {
     dispatch({ type: 'START_RESEARCH' });
     try {
-      // Phase 1: Research
-      const researchData = await coordinator.execute(topic, (agentStates) => {
-        dispatch({ type: 'UPDATE_AGENTS', payload: agentStates });
-      });
+      let researchData: ResearchData;
 
-      // Phase 2: Drafting
+      // --- PATH A: MANUAL OVERRIDE (UPLOAD) ---
+      if (overrideResearch) {
+          
+          if (typeof overrideResearch === 'string') {
+              // Raw Text / Markdown Mode
+              dispatch({ type: 'UPDATE_LOADING_MSG', payload: "🧩 PARSING RAW INTEL..." });
+              dispatch({ type: 'UPDATE_AGENTS', payload: [{ name: "Normalizer", status: 'RUNNING' }] });
+              
+              researchData = await coordinator.normalizeLog(overrideResearch);
+              
+              dispatch({ type: 'UPDATE_AGENTS', payload: [{ name: "Normalizer", status: 'COMPLETED' }] });
+          } else {
+              // Strict JSON Mode
+              dispatch({ type: 'UPDATE_LOADING_MSG', payload: "📂 INJECTING UPLOADED INTEL..." });
+              researchData = overrideResearch;
+              
+              // Artificial delay for UX
+              await new Promise(resolve => setTimeout(resolve, 800));
+              
+              dispatch({ type: 'UPDATE_AGENTS', payload: [
+                { name: "Manual Upload", status: 'COMPLETED' },
+                { name: "System Bypass", status: 'COMPLETED' }
+              ]});
+          }
+
+      } 
+      else {
+          // --- PATH B: STANDARD EXECUTION ---
+          const cacheKey = `YIT_RESEARCH_CACHE_${topic.trim().toLowerCase()}`;
+          const cachedData = localStorage.getItem(cacheKey);
+
+          if (cachedData) {
+              // CACHE HIT
+              dispatch({ type: 'UPDATE_LOADING_MSG', payload: "⚡ PRE-EXECUTION QUERY: CACHE HIT..." });
+              researchData = JSON.parse(cachedData);
+              dispatch({ type: 'UPDATE_AGENTS', payload: [
+                { name: "Detective", status: 'COMPLETED' },
+                { name: "Auditor", status: 'COMPLETED' },
+                { name: "Insider", status: 'COMPLETED' },
+                { name: "Statistician", status: 'COMPLETED' }
+              ]});
+              await new Promise(resolve => setTimeout(resolve, 1200));
+          } else {
+              // CACHE MISS - FULL SWARM
+              researchData = await coordinator.execute(topic, (agentStates) => {
+                dispatch({ type: 'UPDATE_AGENTS', payload: agentStates });
+              });
+              try {
+                localStorage.setItem(cacheKey, JSON.stringify(researchData));
+              } catch(e) { console.warn("Cache write failed", e); }
+          }
+      }
+
+      // --- PHASE 2: DRAFTING (Always Runs) ---
       dispatch({ type: 'START_DRAFTING' });
       
       const draft = await author.generateDraft(
@@ -152,18 +203,11 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
   const createBranch = async (settings: GenSettings) => {
     if (!state.project) return;
     try {
-      // Branch creation also triggers the multi-step drafting process
-      // We don't set global 'DRAFTING' status here because we might want to keep the UI interactive,
-      // or we should handle a "Branch Creating" state. For now, we'll let the user wait.
-      // But typically we should show a loader. 
-      // The InputSection handles `isLoading` prop locally, but we can update that logic.
-      
-      // Ideally, pass a callback even here if we want to bubble up progress.
       const draft = await author.generateDraft(
           state.project.topic, 
           state.project.research, 
           settings,
-          (msg) => console.log("Branch Progress:", msg) // Just log for now or wire up if needed
+          (msg) => console.log("Branch Progress:", msg)
       );
       
       const newBranch: Branch = {
@@ -187,7 +231,6 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
 
       dispatch({ type: 'SET_PODCAST_LOADING', payload: true });
       try {
-          // 1. Script (Now includes Book context if available)
           const script = await PodcastService.generateScript(
               state.project.topic,
               state.project.research,
@@ -195,7 +238,6 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
               book
           );
 
-          // 2. Audio
           const audioUrl = await PodcastService.generateAudio(script, settings);
 
           const episode: PodcastEpisode = {
@@ -217,6 +259,11 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       }
   };
 
+  const clearCacheForTopic = (topic: string) => {
+      const key = `YIT_RESEARCH_CACHE_${topic.trim().toLowerCase()}`;
+      localStorage.removeItem(key);
+  };
+
   const updatePodcastEpisode = (episode: PodcastEpisode) => {
       dispatch({ type: 'UPDATE_PODCAST', payload: episode });
   };
@@ -226,7 +273,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
   const updateActiveBook = (book: Book) => dispatch({ type: 'UPDATE_BOOK', payload: book });
 
   return (
-    <ProjectContext.Provider value={{ state, startInvestigation, createBranch, resetProject, setActiveBranch, updateActiveBook, generatePodcast, updatePodcastEpisode }}>
+    <ProjectContext.Provider value={{ state, startInvestigation, createBranch, resetProject, setActiveBranch, updateActiveBook, generatePodcast, updatePodcastEpisode, clearCacheForTopic }}>
       {children}
     </ProjectContext.Provider>
   );
