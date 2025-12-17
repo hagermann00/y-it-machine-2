@@ -1,3 +1,4 @@
+@@ -1,20 +1,879 @@
 <div align="center">
 <img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
 
@@ -12,6 +13,7 @@
 
 </div>
 
+# Run and deploy your AI Studio app
 ---
 
 ## 📖 Table of Contents
@@ -472,6 +474,7 @@ applyPreset(loadedPreset);
 
 ### 2. Book Generation
 
+This contains everything you need to run your app locally.
 **Flow**:
 1. User selects **writing model** (e.g., Claude 3.5 Sonnet)
 2. `AuthorAgent` constructs prompt with research data + global settings
@@ -480,6 +483,7 @@ applyPreset(loadedPreset);
 5. Zod schema validates output
 6. Book stored in multi-branch state
 
+View your app in AI Studio: https://ai.studio/apps/drive/1MiVdutn9sl88jZOqzodBevbqmQF6DnQc
 **Code**:
 ```typescript
 // src/services/agents/AuthorAgent.ts
@@ -492,8 +496,10 @@ const response = await provider.generateText(
 const book = parseJsonFromLLM<Book>(response);
 ```
 
+## Run Locally
 ### 3. Image Generation
 
+**Prerequisites:**  Node.js
 **Flow**:
 1. Extract visual descriptions from book chapters
 2. User selects **image model** (e.g., DALL-E 3)
@@ -510,6 +516,11 @@ const images = await Promise.all(
 await cacheImages(images);
 ```
 
+1. Install dependencies:
+   `npm install`
+2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
+3. Run the app:
+   `npm run dev`
 ### 4. Podcast Generation
 
 **Flow**:
@@ -832,9 +843,7 @@ npx typedoc --out docs src
 
 ```
 <type>(<scope>): <description>
-
 [optional body]
-
 [optional footer]
 ```
 
