@@ -23,7 +23,7 @@ export class ImageService {
         const providerId = modelDef ? modelDef.provider : (preferredModelId.includes('gpt') || preferredModelId.includes('dall') ? 'openai' : 'google');
 
         try {
-            const provider = ProviderRegistry.getInstance().getProvider(providerId);
+            const provider = await ProviderRegistry.getInstance().getProvider(providerId);
 
             console.log(`Generating image with ${preferredModelId} (${providerId})...`);
 

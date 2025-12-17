@@ -22,7 +22,7 @@ export class AuthorAgent {
         const safeModelId = modelDef ? modelId : 'gemini-2.5-flash';
         const safeProviderId = modelDef ? modelDef.provider : 'google';
 
-        const provider = ProviderRegistry.getInstance().getProvider(safeProviderId);
+        const provider = await ProviderRegistry.getInstance().getProvider(safeProviderId);
 
         // 2. Build Prompt
         const lengthInstruction = settings.lengthLevel === 1 ? "Keep chapters short (Nano-sized)."

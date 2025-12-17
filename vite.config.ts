@@ -18,6 +18,52 @@ export default defineConfig(({ mode }) => {
       alias: {
         '@': path.resolve(__dirname, './src'),
       }
+    },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks: (id) => {
+            // Split providers into separate chunks - only loaded on demand
+            if (id.includes('GeminiProvider.ts')) {
+              return 'provider-gemini';
+            }
+            if (id.includes('AnthropicProvider.ts')) {
+              return 'provider-anthropic';
+            }
+            if (id.includes('OpenAIProvider.ts')) {
+              return 'provider-openai';
+            }
+            // Split PDF export utilities
+            if (id.includes('pdfExport.ts')) {
+              return 'pdf-export';
+            }
+            // Split vendor LLM libraries
+            if (id.includes('node_modules/openai')) {
+              return 'vendor-openai';
+            }
+            if (id.includes('node_modules/@anthropic-ai/sdk')) {
+              return 'vendor-anthropic';
+            }
+            if (id.includes('node_modules/@google/genai')) {
+              return 'vendor-gemini';
+            }
+            // Split Recharts with its dependencies
+            if (id.includes('node_modules/recharts')) {
+              return 'vendor-recharts';
+            }
+            // Keep React and related in vendor
+            if (id.includes('node_modules/react')) {
+              return 'vendor-react';
+            }
+            // jsPDF and related
+            if (id.includes('node_modules/jspdf') || id.includes('node_modules/html2canvas')) {
+              return 'pdf-deps';
+            }
+          }
+        }
+      },
+      // Increase chunk size warnings threshold since we're optimizing
+      chunkSizeWarningLimit: 1000
     }
   };
 });

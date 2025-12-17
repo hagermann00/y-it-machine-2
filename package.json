@@ -11,7 +11,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.2",
     "@google/genai": "^1.33.0",
-    "jspdf": "2.5.1",
+    "jspdf": "3.0.4",
     "lucide-react": "^0.559.0",
     "openai": "^6.10.0",
     "react": "^19.2.1",

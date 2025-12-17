@@ -6,7 +6,7 @@ export class PodcastService {
 
     public static async generateScript(topic: string, research: ResearchData, settings: PodcastSettings, book?: Book): Promise<{ title: string, lines: PodcastScriptLine[] }> {
         // Use Gemini Flash for speed/cost on podcast scripts usually
-        const provider = ProviderRegistry.getInstance().getProvider('google');
+        const provider = await ProviderRegistry.getInstance().getProvider('google');
 
         const prompt = `
             Create a 2-person podcast script discussing the topic: "${topic}".

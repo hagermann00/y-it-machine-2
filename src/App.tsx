@@ -1,14 +1,14 @@
 
 import React, { useState } from 'react';
 import InputSection from './components/InputSection';
-import ResearchDashboard from './components/ResearchDashboard';
+import ResearchDashboardLazy from './components/ResearchDashboardLazy';
 import BookReader from './components/BookReader';
 import PodcastStudio from './components/PodcastStudio';
 import AgentStatus from './components/AgentStatus';
 import Loader from './components/Loader'; // Import Loader
 import { AppState, Book, Project, Branch, GenSettings, ExportSettings, TrimSize } from './types';
 import { BookOpen, PieChart, ArrowLeft, Download, ChevronDown, Plus, GitBranch, Settings, X, Loader2, Mic2, Sparkles } from 'lucide-react';
-import { downloadPdf } from './utils/pdfExport';
+import { downloadPdfLazy } from './utils/pdfExportLazy';
 import { ProjectProvider, useProject } from './context/ProjectContext';
 import { DEMO_TOPICS } from './services/demo/DemoModeService';
 
@@ -28,9 +28,9 @@ const AppContent: React.FC = () => {
 
     const activeBranch = state.project?.branches.find(b => b.id === state.activeBranchId);
 
-    const executeExport = () => {
+    const executeExport = async () => {
         if (activeBranch) {
-            downloadPdf(activeBranch.book, exportSettings);
+            await downloadPdfLazy(activeBranch.book, exportSettings);
             setShowExportModal(false);
             setShowExportMenu(false);
         }
@@ -186,7 +186,7 @@ const AppContent: React.FC = () => {
                 {state.project && (
                     <>
                         {activeTab === 'RESEARCH' ? (
-                            <ResearchDashboard data={state.project.research} />
+                            <ResearchDashboardLazy data={state.project.research} />
                         ) : activeTab === 'BOOK' ? (
                             <div className="flex flex-col gap-8">
                                 {activeBranch ? (

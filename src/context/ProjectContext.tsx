@@ -1,7 +1,7 @@
 
 import React, { createContext, useContext, useReducer, ReactNode, useMemo } from 'react';
 import { Project, ResearchData, GenSettings, Branch, Book, PodcastEpisode, PodcastSettings } from '../types';
-import { AgentState, ResearchCoordinator } from '../services/orchestrator';
+import { AgentState } from '../services/orchestrator';
 import { AuthorAgent } from '../services/agents/AuthorAgent';
 import { PodcastService } from '../services/media/PodcastService';
 import { generateDemoResearch, generateDemoBook, generateDemoPodcast, isDemoMode } from '../services/demo/DemoModeService';
@@ -126,7 +126,6 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
   const [state, dispatch] = useReducer(reducer, initialState);
 
   // Memoize service instances to prevent recreation on every render
-  const coordinator = useMemo(() => new ResearchCoordinator(), []);
   const author = useMemo(() => new AuthorAgent(), []);
 
   const startInvestigation = async (topic: string, settings: GenSettings, overrideResearch?: ResearchData | string) => {
@@ -138,13 +137,22 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       if (overrideResearch) {
 
         if (typeof overrideResearch === 'string') {
-          // Raw Text / Markdown Mode
-          dispatch({ type: 'UPDATE_LOADING_MSG', payload: "🧩 PARSING RAW INTEL..." });
-          dispatch({ type: 'UPDATE_AGENTS', payload: [{ name: "Normalizer", status: 'RUNNING' }] });
+          // Raw Text / Markdown Mode - Create minimal research data from provided text
+          dispatch({ type: 'UPDATE_LOADING_MSG', payload: "📂 PROCESSING UPLOADED INTEL..." });
+          dispatch({ type: 'UPDATE_AGENTS', payload: [{ name: "Data Processor", status: 'RUNNING' }] });
 
-          researchData = await coordinator.normalizeLog(overrideResearch, settings.researchModel);
+          // Create a basic research data structure from uploaded text
+          researchData = {
+            summary: overrideResearch.substring(0, 500) || "Uploaded research data provided.",
+            ethicalRating: 5,
+            profitPotential: "Unable to determine",
+            marketStats: [],
+            hiddenCosts: [],
+            caseStudies: [],
+            affiliates: []
+          };
 
-          dispatch({ type: 'UPDATE_AGENTS', payload: [{ name: "Normalizer", status: 'COMPLETED' }] });
+          dispatch({ type: 'UPDATE_AGENTS', payload: [{ name: "Data Processor", status: 'COMPLETED' }] });
         } else {
           // Strict JSON Mode
           dispatch({ type: 'UPDATE_LOADING_MSG', payload: "📂 INJECTING UPLOADED INTEL..." });
@@ -163,7 +171,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
 
       }
       else {
-        // --- PATH B: STANDARD EXECUTION ---
+        // --- PATH B: CACHE LOOKUP (Research is now external, but support cached data) ---
         const CACHE_INDEX_KEY = 'YIT_CACHE_INDEX';
         const MAX_CACHE_ENTRIES = 5;
         const cacheKey = `YIT_RESEARCH_CACHE_${topic.trim().toLowerCase()}`;
@@ -190,10 +198,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
           if (cachedData) {
             dispatch({
               type: 'UPDATE_AGENTS', payload: [
-                { name: "Detective", status: 'COMPLETED' },
-                { name: "Auditor", status: 'COMPLETED' },
-                { name: "Insider", status: 'COMPLETED' },
-                { name: "Statistician", status: 'COMPLETED' }
+                { name: "Cache", status: 'COMPLETED' }
               ]
             });
             await new Promise(resolve => setTimeout(resolve, 1200));
@@ -201,47 +206,35 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
         }
 
         if (!cachedData) {
-          // CACHE MISS - FULL SWARM
-          researchData = await coordinator.execute(topic, settings, (agentStates) => {
-            dispatch({ type: 'UPDATE_AGENTS', payload: agentStates });
+          // CACHE MISS - Research must be provided externally via Obsidian
+          dispatch({ type: 'UPDATE_LOADING_MSG', payload: "⚠️ NO CACHED RESEARCH DATA - PLEASE PROVIDE VIA UPLOAD" });
+          dispatch({
+            type: 'UPDATE_AGENTS', payload: [
+              { name: "External Research", status: 'FAILED', message: "Research data not provided" }
+            ]
           });
 
-          // Write to cache with size limits (FIFO eviction)
-          try {
-            // Get or initialize cache index
-            let cacheIndex: string[] = [];
-            try {
-              const indexData = localStorage.getItem(CACHE_INDEX_KEY);
-              if (indexData) cacheIndex = JSON.parse(indexData);
-            } catch (e) { /* ignore corrupted index */ }
-
-            // Remove oldest entries if at limit
-            while (cacheIndex.length >= MAX_CACHE_ENTRIES) {
-              const oldestKey = cacheIndex.shift();
-              if (oldestKey) localStorage.removeItem(oldestKey);
-            }
-
-            // Add new entry
-            if (!cacheIndex.includes(cacheKey)) {
-              cacheIndex.push(cacheKey);
-            }
-
-            localStorage.setItem(CACHE_INDEX_KEY, JSON.stringify(cacheIndex));
-            localStorage.setItem(cacheKey, JSON.stringify(researchData));
-          } catch (e) {
-            console.warn("Cache write failed", e);
-          }
+          // Create placeholder research data
+          researchData = {
+            summary: `Research for "${topic}" must be provided externally from Obsidian database.`,
+            ethicalRating: 5,
+            profitPotential: "Unable to determine without research data",
+            marketStats: [],
+            hiddenCosts: [],
+            caseStudies: [],
+            affiliates: []
+          };
         }
       }
 
       // --- PHASE 2: DRAFTING (Always Runs) ---
       dispatch({ type: 'START_DRAFTING' });
+      dispatch({ type: 'UPDATE_LOADING_MSG', payload: 'Generating book draft...' });
 
       const draft = await author.generateDraft(
         topic,
         researchData,
-        settings,
-        (msg) => dispatch({ type: 'UPDATE_LOADING_MSG', payload: msg })
+        settings
       );
 
       dispatch({ type: 'RESEARCH_SUCCESS', payload: { topic, data: researchData, settings, draft } });
@@ -257,8 +250,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       const draft = await author.generateDraft(
         state.project.topic,
         state.project.research,
-        settings,
-        (msg) => console.log("Branch Progress:", msg)
+        settings
       );
 
       const newBranch: Branch = {

@@ -10,7 +10,12 @@ interface State {
   error: Error | null;
 }
 
-class ErrorBoundary extends React.Component<Props, State> {
+interface ErrorBoundaryProps extends Props {}
+
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, State> {
+  declare public readonly props: Readonly<ErrorBoundaryProps>;
+  declare public setState: (state: Partial<State>, callback?: () => void) => void;
+
   public state: State = {
     hasError: false,
     error: null,
