@@ -1,4 +1,6 @@
 
+import React, { createContext, useContext, useReducer, ReactNode, useMemo, useEffect } from 'react';
+import { Project, ResearchData, GenSettings, Branch } from '../types';
 import React, { createContext, useContext, useReducer, ReactNode } from 'react';
 import { Project, ResearchData, GenSettings, Branch, Book, PodcastEpisode, PodcastSettings } from '../types';
 import { AgentState, ResearchCoordinator } from '../services/orchestrator';
@@ -104,6 +106,7 @@ const reducer = (state: State, action: Action): State => {
     case 'SET_ERROR':
       return { ...state, status: 'ERROR', error: action.payload, isGeneratingPodcast: false, loadingMessage: '' };
     case 'RESET':
+      localStorage.removeItem('y_it_nano_project'); // Clear storage on reset
       return initialState;
     case 'ADD_BRANCH':
       return {
@@ -155,9 +158,39 @@ const ProjectContext = createContext<{
 } | undefined>(undefined);
 
 export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [state, dispatch] = useReducer(reducer, initialState);
-  const coordinator = new ResearchCoordinator();
-  const author = new AuthorAgent();
+
+  // Hydrate state from localStorage if available
+  const [state, dispatch] = useReducer(reducer, initialState, (defaultState) => {
+    try {
+      const stored = localStorage.getItem('y_it_nano_project');
+      if (stored) {
+        const parsedProject = JSON.parse(stored);
+        // Basic validation: Check if it has branches
+        if (parsedProject && parsedProject.branches && parsedProject.branches.length > 0) {
+           return {
+             ...defaultState,
+             status: 'RESULT',
+             project: parsedProject,
+             activeBranchId: parsedProject.branches[0].id
+           };
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to rehydrate project state:", e);
+    }
+    return defaultState;
+  });
+
+  // Services: Memoized to prevent re-instantiation on every render
+  const coordinator = useMemo(() => new ResearchCoordinator(), []);
+  const author = useMemo(() => new AuthorAgent(), []);
+
+  // Persistence: Save project to localStorage whenever it changes
+  useEffect(() => {
+    if (state.project) {
+      localStorage.setItem('y_it_nano_project', JSON.stringify(state.project));
+    }
+  }, [state.project]);
 
   const startInvestigation = async (topic: string, settings: GenSettings, overrideResearch?: ResearchData | string) => {
     dispatch({ type: 'START_RESEARCH' });
@@ -254,6 +287,8 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       dispatch({ type: 'ADD_BRANCH', payload: newBranch });
     } catch (e: any) {
        console.error("Branch generation failed", e);
+       // Dispatch error so the user knows something went wrong
+       dispatch({ type: 'SET_ERROR', payload: "Failed to create new draft: " + (e.message || "Unknown error") });
     }
   };
 
