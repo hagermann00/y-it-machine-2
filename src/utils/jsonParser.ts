@@ -13,17 +13,36 @@ export const parseJsonFromLLM = <T>(text: string): T => {
   } catch { }
 
   // Strategy 2: Extract from markdown code blocks
-  const codeBlockPatterns = [
-    /```json\s*([\s\S]*?)\s*```/i,
-    /```\s*([\s\S]*?)\s*```/,
-    /`([\s\S]*?)`/
-  ];
-
-  for (const pattern of codeBlockPatterns) {
-    const match = text.match(pattern);
-    if (match && match[1]) {
+  // Optimized to avoid regex looping over large text
+  const jsonStartMatch = text.match(/```json/i);
+  if (jsonStartMatch && jsonStartMatch.index !== undefined) {
+    const start = jsonStartMatch.index + jsonStartMatch[0].length;
+    const end = text.indexOf('```', start);
+    if (end !== -1) {
       try {
-        return JSON.parse(match[1].trim()) as T;
+        return JSON.parse(text.slice(start, end).trim()) as T;
+      } catch { }
+    }
+  }
+
+  const codeBlockStart = text.indexOf('```');
+  if (codeBlockStart !== -1) {
+    const start = codeBlockStart + 3;
+    const end = text.indexOf('```', start);
+    if (end !== -1) {
+      try {
+        return JSON.parse(text.slice(start, end).trim()) as T;
+      } catch { }
+    }
+  }
+
+  const inlineCodeStart = text.indexOf('`');
+  if (inlineCodeStart !== -1) {
+    const start = inlineCodeStart + 1;
+    const end = text.indexOf('`', start);
+    if (end !== -1) {
+      try {
+        return JSON.parse(text.slice(start, end).trim()) as T;
       } catch { }
     }
   }
