@@ -213,7 +213,7 @@ export const downloadPdf = (book: Book, settings: ExportSettings) => {
     const paragraphs = chapter.content.split('\n');
 
     paragraphs.forEach(para => {
-      let text = para.trim();
+      const text = para.trim();
       if (!text) {
         y += lineHeight;
         return;
@@ -222,34 +222,30 @@ export const downloadPdf = (book: Book, settings: ExportSettings) => {
       let isBold = false;
       let fontSize = 11;
 
-      // Handle Markdown Headers
+      // Style detection
       if (text.startsWith('##') || text.startsWith('###')) {
         isBold = true;
-        text = text.replace(/^#+\s*/, '');
         fontSize = 13;
-        y += 0.2; // Extra space before header
+        y += 0.2;
       } else if (text.startsWith('#')) {
         isBold = true;
-        text = text.replace(/^#+\s*/, '');
         fontSize = 14;
         y += 0.3;
       }
 
-      // Handle bolding
-      if (text.match(/^\*\*.*\*\*$/)) {
+      const textAfterHeader = text.replace(/^#+\s*/, '');
+      if (textAfterHeader.match(/^\*\*.*\*\*$/)) {
         isBold = true;
-        text = text.replace(/\*\*/g, '');
       }
 
       doc.setFont("times", isBold ? "bold" : "normal");
       doc.setFontSize(fontSize);
 
-      const cleanText = text.replace(/[*_`]/g, '');
+      const cleanText = text.replace(/^#+\s*/, '').replace(/[*_`]/g, '');
       const lines = doc.splitTextToSize(cleanText, contentWidth);
 
       // Orphan protection (Basic): Don't start paragraph if only 1 line fits
       if (y + (lines.length * lineHeight) > contentBottom) {
-        // If massive paragraph, just split it. If header, force new page.
         if (isBold) {
           doc.addPage();
           y = topMargin;
