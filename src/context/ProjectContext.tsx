@@ -331,15 +331,26 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       { name: 'Statistician', messages: ['Crunching market data...', 'Computing success rates...', 'Generating projections...'] }
     ];
 
+    // Initialize agent states with PENDING status
+    let currentAgentStates = agents.map(a => ({ name: a.name, status: 'PENDING' })) as AgentState[];
+
     for (let i = 0; i < agents.length; i++) {
       const agent = agents[i];
 
-      // Set agent to RUNNING
-      const agentStates = agents.map((a, idx) => ({
-        name: a.name,
-        status: idx < i ? 'COMPLETED' : idx === i ? 'RUNNING' : 'PENDING'
-      })) as AgentState[];
-      dispatch({ type: 'UPDATE_AGENTS', payload: agentStates });
+      // Create a shallow copy of the state array for immutable update
+      const nextAgentStates = currentAgentStates.slice();
+
+      // Update previous agent to COMPLETED
+      if (i > 0) {
+        nextAgentStates[i - 1] = { ...nextAgentStates[i - 1], status: 'COMPLETED' };
+      }
+
+      // Update current agent to RUNNING
+      nextAgentStates[i] = { ...nextAgentStates[i], status: 'RUNNING' };
+
+      // Update local reference and dispatch
+      currentAgentStates = nextAgentStates;
+      dispatch({ type: 'UPDATE_AGENTS', payload: currentAgentStates });
 
       // Cycle through dramatic messages for this agent
       for (const msg of agent.messages) {
