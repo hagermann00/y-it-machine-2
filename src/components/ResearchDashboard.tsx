@@ -1,6 +1,6 @@
 
-import React from 'react';
-import { ResearchData } from '../types';
+import React, { useMemo } from 'react';
+import { ResearchData, AffiliateOpp } from '../types';
 import { ShieldAlert, TrendingUp, DollarSign, Users, Skull, CheckCircle } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
@@ -9,6 +9,16 @@ interface Props {
 }
 
 const ResearchDashboard: React.FC<Props> = ({ data }) => {
+
+  const { participantAffiliates, writerAffiliates } = useMemo(() => {
+    const participants: AffiliateOpp[] = [];
+    const writers: AffiliateOpp[] = [];
+    for (const aff of data.affiliates) {
+      if (aff.type === 'PARTICIPANT') participants.push(aff);
+      else if (aff.type === 'WRITER') writers.push(aff);
+    }
+    return { participantAffiliates: participants, writerAffiliates: writers };
+  }, [data.affiliates]);
   
   const getRatingColor = (rating: number) => {
     if (rating >= 8) return 'text-green-500 border-green-500';
@@ -100,7 +110,7 @@ const ResearchDashboard: React.FC<Props> = ({ data }) => {
             </h3>
             <p className="text-sm text-gray-500 mb-4">Affiliate programs for people DOING the side hustle.</p>
             <div className="space-y-4">
-                {data.affiliates.filter(a => a.type === 'PARTICIPANT').map((aff, idx) => (
+                {participantAffiliates.map((aff, idx) => (
                     <div key={idx} className="flex justify-between items-center p-3 bg-black/40 rounded border border-gray-800">
                         <div>
                             <div className="font-bold">{aff.program}</div>
@@ -112,7 +122,7 @@ const ResearchDashboard: React.FC<Props> = ({ data }) => {
                         </div>
                     </div>
                 ))}
-                {data.affiliates.filter(a => a.type === 'PARTICIPANT').length === 0 && <p className="text-gray-600 italic">None detected.</p>}
+                {participantAffiliates.length === 0 && <p className="text-gray-600 italic">None detected.</p>}
             </div>
         </div>
 
@@ -123,7 +133,7 @@ const ResearchDashboard: React.FC<Props> = ({ data }) => {
             </h3>
             <p className="text-sm text-gray-500 mb-4">Why everyone is recommending this hustle to you.</p>
             <div className="space-y-4">
-                {data.affiliates.filter(a => a.type === 'WRITER').map((aff, idx) => (
+                {writerAffiliates.map((aff, idx) => (
                     <div key={idx} className="flex justify-between items-center p-3 bg-black/40 rounded border border-gray-800">
                         <div>
                             <div className="font-bold">{aff.program}</div>
@@ -135,7 +145,7 @@ const ResearchDashboard: React.FC<Props> = ({ data }) => {
                         </div>
                     </div>
                 ))}
-                 {data.affiliates.filter(a => a.type === 'WRITER').length === 0 && <p className="text-gray-600 italic">None detected.</p>}
+                 {writerAffiliates.length === 0 && <p className="text-gray-600 italic">None detected.</p>}
             </div>
         </div>
       </div>
