@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { Settings, ChevronDown, ChevronUp, Copy, Clipboard, FileJson, Download, FileUp, Save, Trash2, File, Check, ToggleRight, ToggleLeft, Plus, FileText, Activity, Smile, Bot, Image as ImageIcon, Sliders, Scale, Calculator, BookOpen, ChevronLeft, ChevronRight } from 'lucide-react';
 import { GenSettings, ImageModelID, ResearchData } from '../types';
 import { IMAGE_MODELS } from '../constants';
@@ -104,7 +104,7 @@ interface ChapterRowProps {
   onUpdate: (id: number, field: keyof ChapterConfig, value: any) => void;
 }
 
-const ChapterRow: React.FC<ChapterRowProps> = ({ config, isAddendum = false, onUpdate }) => {
+const ChapterRow = memo(({ config, isAddendum = false, onUpdate }: ChapterRowProps) => {
     const [showManuscript, setShowManuscript] = useState(false);
 
     const handlePaste = (e: React.ClipboardEvent) => {
@@ -207,7 +207,7 @@ const ChapterRow: React.FC<ChapterRowProps> = ({ config, isAddendum = false, onU
             </div>
         </div>
     );
-};
+});
 
 /**
  * Sanitizes input to prevent XSS and limit length
@@ -579,13 +579,13 @@ export default function ResearchForm({
         );
     };
 
-    const updateChapter = (id: number, field: keyof ChapterConfig, value: any) => {
+    const updateChapter = useCallback((id: number, field: keyof ChapterConfig, value: any) => {
         setChapters(prev => prev.map(ch => ch.id === id ? { ...ch, [field]: value } : ch));
-    };
+    }, []);
 
-    const updateAddendum = (id: number, field: keyof ChapterConfig, value: any) => {
+    const updateAddendum = useCallback((id: number, field: keyof ChapterConfig, value: any) => {
         setAddendums(prev => prev.map(a => a.id === id ? { ...a, [field]: value } : a));
-    };
+    }, []);
 
     const handleSetTotalPages = (total: number) => {
         setTargetTotalPages(total);
