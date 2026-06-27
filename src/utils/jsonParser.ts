@@ -75,17 +75,21 @@ export const parseJsonFromLLM = <T>(text: string): T => {
   } catch { }
 
   // Strategy 5: Try to fix common JSON issues
-  cleanText = text
-    .replace(/,\s*}/g, '}')     // Remove trailing commas in objects
-    .replace(/,\s*]/g, ']')     // Remove trailing commas in arrays
-    .replace(/'/g, '"')         // Replace single quotes with double
-    .replace(/(\w+):/g, '"$1":') // Add quotes to unquoted keys
+  cleanText = cleanText
+    // 1. Handle single quotes: 'string' -> "string", while preserving internal apostrophes
+    .replace(/'((?:[^'\\]|\\.)*)'/g, (_, p1) => {
+      return '"' + p1.replace(/"/g, '\\"').replace(/\\'/g, "'") + '"';
+    })
+    // 2. Add quotes to unquoted keys
+    .replace(/([{,]\s*)([a-zA-Z0-9_$]+)\s*:/g, '$1"$2":')
+    // 3. Remove trailing commas
+    .replace(/,\s*(?=[}\]])/g, '')
     .trim();
 
-  const objMatch = cleanText.match(/(\{[\s\S]*\})/);
-  if (objMatch) {
+  const jsonMatch = cleanText.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
+  if (jsonMatch) {
     try {
-      return JSON.parse(objMatch[1]) as T;
+      return JSON.parse(jsonMatch[0]) as T;
     } catch { }
   }
 
