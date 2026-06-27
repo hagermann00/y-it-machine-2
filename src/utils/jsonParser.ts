@@ -1,3 +1,21 @@
+// Pre-compile regexes and static arrays to avoid reallocation on every function call
+const JSON_BLOCK_START_REGEX = /```json/i;
+const JSON_BLOCK_CLEAN_REGEX = /```json/gi;
+const CODE_BLOCK_CLEAN_REGEX = /```/g;
+const TEXT_BEFORE_JSON_REGEX = /^[^[{]*/;
+const TEXT_AFTER_JSON_REGEX = /[^\]}]*$/;
+const TRAILING_COMMA_OBJECT_REGEX = /,\s*}/g;
+const TRAILING_COMMA_ARRAY_REGEX = /,\s*]/g;
+const SINGLE_QUOTE_REGEX = /'/g;
+const UNQUOTED_KEY_REGEX = /(\w+):/g;
+const JSON_OBJECT_REGEX = /(\{[\s\S]*\})/;
+const JSON_ARRAY_REGEX = /(\[[\s\S]*\])/;
+
+const JSON_EXTRACT_PATTERNS = [
+  JSON_OBJECT_REGEX,
+  JSON_ARRAY_REGEX
+];
+
 /**
  * Robustly parses JSON from LLM output using multiple extraction strategies.
  * Handles markdown code blocks, raw text, partial responses, and malformed JSON.
@@ -14,7 +32,7 @@ export const parseJsonFromLLM = <T>(text: string): T => {
 
   // Strategy 2: Extract from markdown code blocks
   // Optimized to avoid regex looping over large text
-  const jsonStartMatch = text.match(/```json/i);
+  const jsonStartMatch = text.match(JSON_BLOCK_START_REGEX);
   if (jsonStartMatch && jsonStartMatch.index !== undefined) {
     const start = jsonStartMatch.index + jsonStartMatch[0].length;
     const end = text.indexOf('```', start);
@@ -48,12 +66,7 @@ export const parseJsonFromLLM = <T>(text: string): T => {
   }
 
   // Strategy 3: Find JSON-like structure in text (starts with { or [)
-  const jsonPatterns = [
-    /(\{[\s\S]*\})/,  // Object
-    /(\[[\s\S]*\])/   // Array
-  ];
-
-  for (const pattern of jsonPatterns) {
+  for (const pattern of JSON_EXTRACT_PATTERNS) {
     const match = text.match(pattern);
     if (match && match[1]) {
       try {
@@ -64,10 +77,10 @@ export const parseJsonFromLLM = <T>(text: string): T => {
 
   // Strategy 4: Aggressive cleanup - remove common LLM artifacts
   let cleanText = text
-    .replace(/```json/gi, '')
-    .replace(/```/g, '')
-    .replace(/^[^[{]*/, '')  // Remove text before first { or [
-    .replace(/[^\]}]*$/, '') // Remove text after last } or ]
+    .replace(JSON_BLOCK_CLEAN_REGEX, '')
+    .replace(CODE_BLOCK_CLEAN_REGEX, '')
+    .replace(TEXT_BEFORE_JSON_REGEX, '')  // Remove text before first { or [
+    .replace(TEXT_AFTER_JSON_REGEX, '') // Remove text after last } or ]
     .trim();
 
   try {
@@ -76,13 +89,13 @@ export const parseJsonFromLLM = <T>(text: string): T => {
 
   // Strategy 5: Try to fix common JSON issues
   cleanText = text
-    .replace(/,\s*}/g, '}')     // Remove trailing commas in objects
-    .replace(/,\s*]/g, ']')     // Remove trailing commas in arrays
-    .replace(/'/g, '"')         // Replace single quotes with double
-    .replace(/(\w+):/g, '"$1":') // Add quotes to unquoted keys
+    .replace(TRAILING_COMMA_OBJECT_REGEX, '}')     // Remove trailing commas in objects
+    .replace(TRAILING_COMMA_ARRAY_REGEX, ']')     // Remove trailing commas in arrays
+    .replace(SINGLE_QUOTE_REGEX, '"')         // Replace single quotes with double
+    .replace(UNQUOTED_KEY_REGEX, '"$1":') // Add quotes to unquoted keys
     .trim();
 
-  const objMatch = cleanText.match(/(\{[\s\S]*\})/);
+  const objMatch = cleanText.match(JSON_OBJECT_REGEX);
   if (objMatch) {
     try {
       return JSON.parse(objMatch[1]) as T;
