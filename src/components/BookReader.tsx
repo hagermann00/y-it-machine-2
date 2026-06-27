@@ -363,7 +363,7 @@ const BookReader: React.FC<Props> = ({ book, visualStyle, imageModelHierarchy, o
                         )}
 
                         {/* Render HERO images on Page 1 */}
-                        {activePage.subPageIndex === 0 && activePage.chapter.visuals?.filter(v => v.type === 'HERO').map((v, i) => renderVisual(v, i, activePage.chapterIndex!))}
+                        {activePage.subPageIndex === 0 && activePage.chapter.visuals?.reduce((acc, v) => { if (v.type === 'HERO') { acc.push(renderVisual(v, acc.length, activePage.chapterIndex!)); } return acc; }, [] as React.ReactNode[])}
 
                         <div className="prose prose-lg prose-stone max-w-none flex-1">
                             <ReactMarkdown>{activePage.content || ""}</ReactMarkdown>
@@ -371,7 +371,7 @@ const BookReader: React.FC<Props> = ({ book, visualStyle, imageModelHierarchy, o
 
                         {/* Render ALL Other visuals on Last Page of Chapter */}
                         {activePage.subPageIndex === (activePage.totalSubPages! - 1) &&
-                            activePage.chapter.visuals?.filter(v => v.type !== 'HERO').map((v, i) => renderVisual(v, i + 100, activePage.chapterIndex!))}
+                            activePage.chapter.visuals?.reduce((acc, v) => { if (v.type !== 'HERO') { acc.push(renderVisual(v, acc.length + 100, activePage.chapterIndex!)); } return acc; }, [] as React.ReactNode[])}
                     </div>
                 )}
 
