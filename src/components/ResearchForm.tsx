@@ -472,28 +472,32 @@ export default function ResearchForm({
         if (data.addendumCount) setAddendumCount(data.addendumCount);
 
         if (Array.isArray(data.chapters)) {
+            const chapterMap = new Map(data.chapters.filter((c: any) => c && typeof c === 'object').map((c: any) => [c.id, c]));
             setChapters(prev => prev.map((ch, idx) => {
-                if (typeof data.chapters[idx] === 'string') {
-                    return { ...ch, outline: data.chapters[idx] };
+                const itemAtIdx = data.chapters[idx];
+                if (typeof itemAtIdx === 'string') {
+                    return { ...ch, outline: itemAtIdx };
                 }
-                else if (typeof data.chapters[idx] === 'object') {
-                    const pasted = data.chapters.find((p: any) => p.id === ch.id);
+                else if (typeof itemAtIdx === 'object' && itemAtIdx !== null) {
+                    const pasted = chapterMap.get(ch.id);
                     if (pasted) return { ...ch, ...pasted };
-                    if (data.chapters[idx]) return { ...ch, ...data.chapters[idx] };
+                    return { ...ch, ...itemAtIdx };
                 }
                 return ch;
             }));
         }
 
         if (Array.isArray(data.addendums)) {
+            const addendumMap = new Map(data.addendums.filter((c: any) => c && typeof c === 'object').map((c: any) => [c.id, c]));
             setAddendums(prev => prev.map((ch, idx) => {
-                if (typeof data.addendums[idx] === 'string') {
-                    return { ...ch, outline: data.addendums[idx] };
+                const itemAtIdx = data.addendums[idx];
+                if (typeof itemAtIdx === 'string') {
+                    return { ...ch, outline: itemAtIdx };
                 }
-                else if (typeof data.addendums[idx] === 'object') {
-                    const pasted = data.addendums.find((p: any) => p.id === ch.id);
+                else if (typeof itemAtIdx === 'object' && itemAtIdx !== null) {
+                    const pasted = addendumMap.get(ch.id);
                     if (pasted) return { ...ch, ...pasted };
-                    if (data.addendums[idx]) return { ...ch, ...data.addendums[idx] };
+                    return { ...ch, ...itemAtIdx };
                 }
                 return ch;
             }));
