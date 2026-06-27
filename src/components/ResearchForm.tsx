@@ -472,12 +472,19 @@ export default function ResearchForm({
         if (data.addendumCount) setAddendumCount(data.addendumCount);
 
         if (Array.isArray(data.chapters)) {
+            const dataChaptersMap = new Map();
+            for (const p of data.chapters) {
+                if (typeof p === 'object' && p !== null && p.id) {
+                    dataChaptersMap.set(p.id, p);
+                }
+            }
+
             setChapters(prev => prev.map((ch, idx) => {
                 if (typeof data.chapters[idx] === 'string') {
                     return { ...ch, outline: data.chapters[idx] };
                 }
                 else if (typeof data.chapters[idx] === 'object') {
-                    const pasted = data.chapters.find((p: any) => p.id === ch.id);
+                    const pasted = dataChaptersMap.get(ch.id);
                     if (pasted) return { ...ch, ...pasted };
                     if (data.chapters[idx]) return { ...ch, ...data.chapters[idx] };
                 }
@@ -486,12 +493,19 @@ export default function ResearchForm({
         }
 
         if (Array.isArray(data.addendums)) {
+            const dataAddendumsMap = new Map();
+            for (const p of data.addendums) {
+                if (typeof p === 'object' && p !== null && p.id) {
+                    dataAddendumsMap.set(p.id, p);
+                }
+            }
+
             setAddendums(prev => prev.map((ch, idx) => {
                 if (typeof data.addendums[idx] === 'string') {
                     return { ...ch, outline: data.addendums[idx] };
                 }
                 else if (typeof data.addendums[idx] === 'object') {
-                    const pasted = data.addendums.find((p: any) => p.id === ch.id);
+                    const pasted = dataAddendumsMap.get(ch.id);
                     if (pasted) return { ...ch, ...pasted };
                     if (data.addendums[idx]) return { ...ch, ...data.addendums[idx] };
                 }
