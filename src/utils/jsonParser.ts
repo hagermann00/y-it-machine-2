@@ -48,16 +48,24 @@ export const parseJsonFromLLM = <T>(text: string): T => {
   }
 
   // Strategy 3: Find JSON-like structure in text (starts with { or [)
-  const jsonPatterns = [
-    /(\{[\s\S]*\})/,  // Object
-    /(\[[\s\S]*\])/   // Array
-  ];
-
-  for (const pattern of jsonPatterns) {
-    const match = text.match(pattern);
-    if (match && match[1]) {
+  // Optimized: use indexOf/lastIndexOf instead of regex matching on potentially huge text
+  // Maintain original priority: try Object ({}) first, then Array ([])
+  const firstBrace = text.indexOf('{');
+  if (firstBrace !== -1) {
+    const lastBrace = text.lastIndexOf('}');
+    if (lastBrace > firstBrace) {
       try {
-        return JSON.parse(match[1]) as T;
+        return JSON.parse(text.slice(firstBrace, lastBrace + 1)) as T;
+      } catch { }
+    }
+  }
+
+  const firstBracket = text.indexOf('[');
+  if (firstBracket !== -1) {
+    const lastBracket = text.lastIndexOf(']');
+    if (lastBracket > firstBracket) {
+      try {
+        return JSON.parse(text.slice(firstBracket, lastBracket + 1)) as T;
       } catch { }
     }
   }
