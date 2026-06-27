@@ -139,7 +139,7 @@ const BookReader: React.FC<Props> = ({ book, visualStyle, imageModelHierarchy, o
             }
 
             // Deep clone & Update
-            const newBook = JSON.parse(JSON.stringify(book)) as Book;
+            const newBook = structuredClone(book) as Book;
 
             if (chapterIndex === 'front' && newBook.frontCover) newBook.frontCover.imageUrl = imageUrl;
             else if (chapterIndex === 'back' && newBook.backCover) newBook.backCover.imageUrl = imageUrl;
@@ -164,7 +164,7 @@ const BookReader: React.FC<Props> = ({ book, visualStyle, imageModelHierarchy, o
             const reader = new FileReader();
             reader.onloadend = () => {
                 const result = reader.result as string;
-                const newBook = JSON.parse(JSON.stringify(book)) as Book;
+                const newBook = structuredClone(book) as Book;
 
                 if (chapterIndex === 'front' && newBook.frontCover) newBook.frontCover.imageUrl = result;
                 else if (chapterIndex === 'back' && newBook.backCover) newBook.backCover.imageUrl = result;
