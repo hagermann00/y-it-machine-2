@@ -78,14 +78,20 @@ export const parseJsonFromLLM = <T>(text: string): T => {
   cleanText = text
     .replace(/,\s*}/g, '}')     // Remove trailing commas in objects
     .replace(/,\s*]/g, ']')     // Remove trailing commas in arrays
-    .replace(/'/g, '"')         // Replace single quotes with double
-    .replace(/(\w+):/g, '"$1":') // Add quotes to unquoted keys
+    // Replace single quotes with double quotes, but try to preserve apostrophes
+    // This is a heuristic: single quotes used as delimiters usually have { [ , : before or } ] , : after
+    .replace(/([\{\}\[\]\s,:]|^)'/g, '$1"')
+    .replace(/'([\{\}\[\]\s,:]|$)/g, '"$1')
+    // Add quotes to unquoted keys (handling potential spaces)
+    // Avoid matching protocol prefixes like https:
+    .replace(/([{,]\s*)([a-zA-Z_]\w*)(\s*:)/g, '$1"$2"$3')
+    .replace(/\\'/g, "'") // Fix escaped single quotes that should now be plain apostrophes
     .trim();
 
-  const objMatch = cleanText.match(/(\{[\s\S]*\})/);
-  if (objMatch) {
+  const jsonMatch = cleanText.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
+  if (jsonMatch) {
     try {
-      return JSON.parse(objMatch[1]) as T;
+      return JSON.parse(jsonMatch[1]) as T;
     } catch { }
   }
 
