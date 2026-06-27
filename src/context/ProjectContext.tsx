@@ -201,7 +201,6 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
                 { name: "Cache", status: 'COMPLETED' }
               ]
             });
-            await new Promise(resolve => setTimeout(resolve, 1200));
           }
         }
 
