@@ -16,6 +16,16 @@ interface Props {
 // ---------------------------------------------------------------------------
 const WORDS_PER_PAGE = 300; // Adjust for density
 
+/**
+ * Counts words in a string using a regex match to avoid
+ * expensive regex splits and large array allocations.
+ */
+function countWords(text: string): number {
+    if (!text) return 0;
+    const matches = text.match(/\S+/g);
+    return matches ? matches.length : 0;
+}
+
 function splitContent(text: string, maxWords: number): string[] {
     if (!text) return [];
 
@@ -26,7 +36,7 @@ function splitContent(text: string, maxWords: number): string[] {
     let currentWords = 0;
 
     for (const para of paragraphs) {
-        const paraWords = para.split(/\s+/).length;
+        const paraWords = countWords(para);
 
         // If adding this paragraph exceeds limit AND we have content already, push page
         if (currentWords + paraWords > maxWords && currentPage.length > 0) {
