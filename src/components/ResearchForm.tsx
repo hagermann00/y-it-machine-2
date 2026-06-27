@@ -472,28 +472,44 @@ export default function ResearchForm({
         if (data.addendumCount) setAddendumCount(data.addendumCount);
 
         if (Array.isArray(data.chapters)) {
-            setChapters(prev => prev.map((ch, idx) => {
-                if (typeof data.chapters[idx] === 'string') {
-                    return { ...ch, outline: data.chapters[idx] };
+            const chapterMap = new Map();
+            data.chapters.forEach((item: any) => {
+                if (item && typeof item === 'object' && item.id !== undefined) {
+                    chapterMap.set(item.id, item);
                 }
-                else if (typeof data.chapters[idx] === 'object') {
-                    const pasted = data.chapters.find((p: any) => p.id === ch.id);
+            });
+
+            setChapters(prev => prev.map((ch, idx) => {
+                const itemAtIdx = data.chapters[idx];
+                if (typeof itemAtIdx === 'string') {
+                    return { ...ch, outline: itemAtIdx };
+                }
+                else if (itemAtIdx && typeof itemAtIdx === 'object') {
+                    const pasted = chapterMap.get(ch.id);
                     if (pasted) return { ...ch, ...pasted };
-                    if (data.chapters[idx]) return { ...ch, ...data.chapters[idx] };
+                    return { ...ch, ...itemAtIdx };
                 }
                 return ch;
             }));
         }
 
         if (Array.isArray(data.addendums)) {
-            setAddendums(prev => prev.map((ch, idx) => {
-                if (typeof data.addendums[idx] === 'string') {
-                    return { ...ch, outline: data.addendums[idx] };
+            const addendumMap = new Map();
+            data.addendums.forEach((item: any) => {
+                if (item && typeof item === 'object' && item.id !== undefined) {
+                    addendumMap.set(item.id, item);
                 }
-                else if (typeof data.addendums[idx] === 'object') {
-                    const pasted = data.addendums.find((p: any) => p.id === ch.id);
+            });
+
+            setAddendums(prev => prev.map((ch, idx) => {
+                const itemAtIdx = data.addendums[idx];
+                if (typeof itemAtIdx === 'string') {
+                    return { ...ch, outline: itemAtIdx };
+                }
+                else if (itemAtIdx && typeof itemAtIdx === 'object') {
+                    const pasted = addendumMap.get(ch.id);
                     if (pasted) return { ...ch, ...pasted };
-                    if (data.addendums[idx]) return { ...ch, ...data.addendums[idx] };
+                    return { ...ch, ...itemAtIdx };
                 }
                 return ch;
             }));
