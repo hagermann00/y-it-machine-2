@@ -472,12 +472,19 @@ export default function ResearchForm({
         if (data.addendumCount) setAddendumCount(data.addendumCount);
 
         if (Array.isArray(data.chapters)) {
+            const chaptersMap = new Map();
+            for (let i = 0; i < data.chapters.length; i++) {
+                const ch = data.chapters[i];
+                if (ch && typeof ch === 'object' && ch.id) {
+                    chaptersMap.set(ch.id, ch);
+                }
+            }
             setChapters(prev => prev.map((ch, idx) => {
                 if (typeof data.chapters[idx] === 'string') {
                     return { ...ch, outline: data.chapters[idx] };
                 }
                 else if (typeof data.chapters[idx] === 'object') {
-                    const pasted = data.chapters.find((p: any) => p.id === ch.id);
+                    const pasted = chaptersMap.get(ch.id);
                     if (pasted) return { ...ch, ...pasted };
                     if (data.chapters[idx]) return { ...ch, ...data.chapters[idx] };
                 }
@@ -486,12 +493,19 @@ export default function ResearchForm({
         }
 
         if (Array.isArray(data.addendums)) {
+            const addendumsMap = new Map();
+            for (let i = 0; i < data.addendums.length; i++) {
+                const ch = data.addendums[i];
+                if (ch && typeof ch === 'object' && ch.id) {
+                    addendumsMap.set(ch.id, ch);
+                }
+            }
             setAddendums(prev => prev.map((ch, idx) => {
                 if (typeof data.addendums[idx] === 'string') {
                     return { ...ch, outline: data.addendums[idx] };
                 }
                 else if (typeof data.addendums[idx] === 'object') {
-                    const pasted = data.addendums.find((p: any) => p.id === ch.id);
+                    const pasted = addendumsMap.get(ch.id);
                     if (pasted) return { ...ch, ...pasted };
                     if (data.addendums[idx]) return { ...ch, ...data.addendums[idx] };
                 }

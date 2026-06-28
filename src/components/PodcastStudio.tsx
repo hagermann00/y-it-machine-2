@@ -11,6 +11,32 @@ interface Props {
     onUpdatePodcast?: (episode: PodcastEpisode) => void;
 }
 
+// Pre-calculate music bars to avoid allocation and Math.random() in render loop
+const MUSIC_BARS_COUNT = 30;
+const MUSIC_BARS_CONFIG = Array.from({ length: MUSIC_BARS_COUNT }, (_, i) => ({
+    height: `${Math.random() * 100}%`,
+    opacity: 0.6 + Math.random() * 0.4,
+    animationDelay: `${i * 0.05}s`
+}));
+
+const MusicVisualizer = React.memo(function MusicVisualizer() {
+    return (
+        <div className="h-32 w-full bg-black/80 flex items-center justify-center gap-1 overflow-hidden shrink-0 border-b border-gray-800">
+            {MUSIC_BARS_CONFIG.map((bar, i) => (
+                <div
+                    key={i}
+                    className="w-2 bg-purple-500 rounded-full animate-music-bar"
+                    style={{
+                        height: bar.height,
+                        animationDelay: bar.animationDelay,
+                        opacity: bar.opacity
+                    }}
+                ></div>
+            ))}
+        </div>
+    );
+});
+
 const PodcastStudio: React.FC<Props> = ({ podcast, isGenerating, onGenerate, onUpdatePodcast }) => {
     const [host1, setHost1] = useState<VoiceName>('Puck');
     const [host2, setHost2] = useState<VoiceName>('Kore');
@@ -322,21 +348,7 @@ const PodcastStudio: React.FC<Props> = ({ podcast, isGenerating, onGenerate, onU
                 )}
 
                 {/* Visualization Placeholder */}
-                {isPlaying && (
-                    <div className="h-32 w-full bg-black/80 flex items-center justify-center gap-1 overflow-hidden shrink-0 border-b border-gray-800">
-                        {[...Array(30)].map((_, i) => (
-                            <div
-                                key={i}
-                                className="w-2 bg-purple-500 rounded-full animate-music-bar"
-                                style={{
-                                    height: `${Math.random() * 100}%`,
-                                    animationDelay: `${i * 0.05}s`,
-                                    opacity: 0.6 + Math.random() * 0.4
-                                }}
-                            ></div>
-                        ))}
-                    </div>
-                )}
+                {isPlaying && <MusicVisualizer />}
 
                 {/* Transcript */}
                 {podcast && (

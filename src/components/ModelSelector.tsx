@@ -5,7 +5,7 @@ interface ModelSelectorProps {
     label: string;
     value: string;
     onChange: (modelId: string) => void;
-    filterCapability?: string; // e.g., 'text', 'image'
+    filterCapability?: 'text' | 'image' | 'audio' | 'video' | 'tools' | 'json_mode' | 'thinking'; // e.g., 'text', 'image'
     disabled?: boolean;
     description?: string;
     color?: string; // Tailwind color class for the label
