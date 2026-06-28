@@ -20,6 +20,7 @@ type Action =
   | { type: 'START_RESEARCH' }
   | { type: 'START_DRAFTING' }
   | { type: 'UPDATE_AGENTS', payload: AgentState[] }
+  | { type: 'UPDATE_SINGLE_AGENT', payload: AgentState }
   | { type: 'UPDATE_LOADING_MSG', payload: string }
   | { type: 'RESEARCH_SUCCESS', payload: { topic: string; data: ResearchData; settings: GenSettings; draft: any } }
   | { type: 'SET_ERROR', payload: string }
@@ -48,6 +49,13 @@ const reducer = (state: State, action: Action): State => {
       return { ...state, status: 'DRAFTING', loadingMessage: 'Initializing Ghostwriter...' };
     case 'UPDATE_AGENTS':
       return { ...state, agentStates: action.payload };
+    case 'UPDATE_SINGLE_AGENT':
+      return {
+        ...state,
+        agentStates: state.agentStates.map(a =>
+          a.name === action.payload.name ? action.payload : a
+        )
+      };
     case 'UPDATE_LOADING_MSG':
       return { ...state, loadingMessage: action.payload };
     case 'RESEARCH_SUCCESS':
@@ -201,7 +209,6 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
                 { name: "Cache", status: 'COMPLETED' }
               ]
             });
-            await new Promise(resolve => setTimeout(resolve, 1200));
           }
         }
 
@@ -332,25 +339,12 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     ];
 
     // Initialize agent states with PENDING status
-    let currentAgentStates = agents.map(a => ({ name: a.name, status: 'PENDING' })) as AgentState[];
+    dispatch({ type: 'UPDATE_AGENTS', payload: agents.map(a => ({ name: a.name, status: 'PENDING' })) as AgentState[] });
 
-    for (let i = 0; i < agents.length; i++) {
-      const agent = agents[i];
-
-      // Create a shallow copy of the state array for immutable update
-      const nextAgentStates = currentAgentStates.slice();
-
-      // Update previous agent to COMPLETED
-      if (i > 0) {
-        nextAgentStates[i - 1] = { ...nextAgentStates[i - 1], status: 'COMPLETED' };
-      }
-
+    // Parallel agent execution
+    await Promise.all(agents.map(async (agent) => {
       // Update current agent to RUNNING
-      nextAgentStates[i] = { ...nextAgentStates[i], status: 'RUNNING' };
-
-      // Update local reference and dispatch
-      currentAgentStates = nextAgentStates;
-      dispatch({ type: 'UPDATE_AGENTS', payload: currentAgentStates });
+      dispatch({ type: 'UPDATE_SINGLE_AGENT', payload: { name: agent.name, status: 'RUNNING' } });
 
       // Cycle through dramatic messages for this agent
       for (const msg of agent.messages) {
@@ -359,9 +353,10 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       }
 
       // Mark as complete with satisfaction
+      dispatch({ type: 'UPDATE_SINGLE_AGENT', payload: { name: agent.name, status: 'COMPLETED' } });
       dispatch({ type: 'UPDATE_LOADING_MSG', payload: `✅ ${agent.name.toUpperCase()}: Intelligence gathered!` });
       await new Promise(resolve => setTimeout(resolve, 400));
-    }
+    }));
 
     // All agents complete with flourish
     dispatch({ type: 'UPDATE_AGENTS', payload: agents.map(a => ({ name: a.name, status: 'COMPLETED' })) as AgentState[] });

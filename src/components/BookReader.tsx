@@ -16,6 +16,27 @@ interface Props {
 // ---------------------------------------------------------------------------
 const WORDS_PER_PAGE = 300; // Adjust for density
 
+/**
+ * Counts words in a string using a fast, zero-allocation character traversal loop.
+ */
+function countWords(str: string): number {
+    if (!str) return 0;
+    let count = 0;
+    let inWord = false;
+    for (let i = 0; i < str.length; i++) {
+        const char = str[i];
+        if (char !== ' ' && char !== '\n' && char !== '\r' && char !== '\t') {
+            if (!inWord) {
+                count++;
+                inWord = true;
+            }
+        } else {
+            inWord = false;
+        }
+    }
+    return count;
+}
+
 function splitContent(text: string, maxWords: number): string[] {
     if (!text) return [];
 
@@ -26,7 +47,7 @@ function splitContent(text: string, maxWords: number): string[] {
     let currentWords = 0;
 
     for (const para of paragraphs) {
-        const paraWords = para.split(/\s+/).length;
+        const paraWords = countWords(para);
 
         // If adding this paragraph exceeds limit AND we have content already, push page
         if (currentWords + paraWords > maxWords && currentPage.length > 0) {
@@ -139,7 +160,7 @@ const BookReader: React.FC<Props> = ({ book, visualStyle, imageModelHierarchy, o
             }
 
             // Deep clone & Update
-            const newBook = JSON.parse(JSON.stringify(book)) as Book;
+            const newBook = structuredClone(book) as Book;
 
             if (chapterIndex === 'front' && newBook.frontCover) newBook.frontCover.imageUrl = imageUrl;
             else if (chapterIndex === 'back' && newBook.backCover) newBook.backCover.imageUrl = imageUrl;
@@ -164,7 +185,7 @@ const BookReader: React.FC<Props> = ({ book, visualStyle, imageModelHierarchy, o
             const reader = new FileReader();
             reader.onloadend = () => {
                 const result = reader.result as string;
-                const newBook = JSON.parse(JSON.stringify(book)) as Book;
+                const newBook = structuredClone(book) as Book;
 
                 if (chapterIndex === 'front' && newBook.frontCover) newBook.frontCover.imageUrl = result;
                 else if (chapterIndex === 'back' && newBook.backCover) newBook.backCover.imageUrl = result;
@@ -363,7 +384,12 @@ const BookReader: React.FC<Props> = ({ book, visualStyle, imageModelHierarchy, o
                         )}
 
                         {/* Render HERO images on Page 1 */}
-                        {activePage.subPageIndex === 0 && activePage.chapter.visuals?.filter(v => v.type === 'HERO').map((v, i) => renderVisual(v, i, activePage.chapterIndex!))}
+                        {activePage.subPageIndex === 0 && activePage.chapter.visuals?.reduce((acc: React.ReactNode[], v) => {
+                            if (v.type === 'HERO') {
+                                acc.push(renderVisual(v, acc.length, activePage.chapterIndex!));
+                            }
+                            return acc;
+                        }, [])}
 
                         <div className="prose prose-lg prose-stone max-w-none flex-1">
                             <ReactMarkdown>{activePage.content || ""}</ReactMarkdown>
@@ -371,7 +397,12 @@ const BookReader: React.FC<Props> = ({ book, visualStyle, imageModelHierarchy, o
 
                         {/* Render ALL Other visuals on Last Page of Chapter */}
                         {activePage.subPageIndex === (activePage.totalSubPages! - 1) &&
-                            activePage.chapter.visuals?.filter(v => v.type !== 'HERO').map((v, i) => renderVisual(v, i + 100, activePage.chapterIndex!))}
+                            activePage.chapter.visuals?.reduce((acc: React.ReactNode[], v) => {
+                                if (v.type !== 'HERO') {
+                                    acc.push(renderVisual(v, acc.length + 100, activePage.chapterIndex!));
+                                }
+                                return acc;
+                            }, [])}
                     </div>
                 )}
 
