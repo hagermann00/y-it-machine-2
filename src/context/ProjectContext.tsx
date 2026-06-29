@@ -28,7 +28,8 @@ type Action =
   | { type: 'SET_ACTIVE_BRANCH', payload: string }
   | { type: 'UPDATE_BOOK', payload: Book }
   | { type: 'SET_PODCAST_LOADING', payload: boolean }
-  | { type: 'UPDATE_PODCAST', payload: PodcastEpisode };
+  | { type: 'UPDATE_PODCAST', payload: PodcastEpisode }
+  | { type: 'UPDATE_SINGLE_AGENT', payload: { name: string; status: AgentState['status'] } };
 
 const initialState: State = {
   status: 'INPUT',
@@ -103,6 +104,15 @@ const reducer = (state: State, action: Action): State => {
       return {
         ...state,
         project: { ...state.project, branches: branchesWithPodcast }
+      };
+    case 'UPDATE_SINGLE_AGENT':
+      return {
+        ...state,
+        agentStates: state.agentStates.map(agent =>
+          agent.name === action.payload.name
+            ? { ...agent, status: action.payload.status }
+            : agent
+        )
       };
     default:
       return state;
@@ -332,25 +342,10 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     ];
 
     // Initialize agent states with PENDING status
-    let currentAgentStates = agents.map(a => ({ name: a.name, status: 'PENDING' })) as AgentState[];
+    dispatch({ type: 'UPDATE_AGENTS', payload: agents.map(a => ({ name: a.name, status: 'PENDING' })) as AgentState[] });
 
-    for (let i = 0; i < agents.length; i++) {
-      const agent = agents[i];
-
-      // Create a shallow copy of the state array for immutable update
-      const nextAgentStates = currentAgentStates.slice();
-
-      // Update previous agent to COMPLETED
-      if (i > 0) {
-        nextAgentStates[i - 1] = { ...nextAgentStates[i - 1], status: 'COMPLETED' };
-      }
-
-      // Update current agent to RUNNING
-      nextAgentStates[i] = { ...nextAgentStates[i], status: 'RUNNING' };
-
-      // Update local reference and dispatch
-      currentAgentStates = nextAgentStates;
-      dispatch({ type: 'UPDATE_AGENTS', payload: currentAgentStates });
+    await Promise.all(agents.map(async (agent) => {
+      dispatch({ type: 'UPDATE_SINGLE_AGENT', payload: { name: agent.name, status: 'RUNNING' } });
 
       // Cycle through dramatic messages for this agent
       for (const msg of agent.messages) {
@@ -359,9 +354,10 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       }
 
       // Mark as complete with satisfaction
+      dispatch({ type: 'UPDATE_SINGLE_AGENT', payload: { name: agent.name, status: 'COMPLETED' } });
       dispatch({ type: 'UPDATE_LOADING_MSG', payload: `✅ ${agent.name.toUpperCase()}: Intelligence gathered!` });
       await new Promise(resolve => setTimeout(resolve, 400));
-    }
+    }));
 
     // All agents complete with flourish
     dispatch({ type: 'UPDATE_AGENTS', payload: agents.map(a => ({ name: a.name, status: 'COMPLETED' })) as AgentState[] });
