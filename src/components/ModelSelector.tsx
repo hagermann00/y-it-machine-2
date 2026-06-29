@@ -21,7 +21,7 @@ export default function ModelSelector({
     color = 'text-gray-400'
 }: ModelSelectorProps) {
     const filteredModels = filterCapability
-        ? MODELS.filter(m => m.capabilities.includes(filterCapability) || (filterCapability === 'image' && m.id === 'dall-e-3'))
+        ? MODELS.filter(m => m.capabilities.includes(filterCapability as any) || (filterCapability === 'image' && m.id === 'dall-e-3'))
         : MODELS;
 
     return (
